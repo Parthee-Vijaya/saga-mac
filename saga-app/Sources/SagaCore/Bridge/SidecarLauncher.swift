@@ -39,15 +39,26 @@ public actor SidecarLauncher {
     private func spawn() async throws -> UInt16 {
         let port = try findFreePort()
         let sidecarRoot = try locateSidecarRoot()
+        let uvPath = try locateUv()
 
         let proc = Process()
         proc.currentDirectoryURL = sidecarRoot
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        proc.arguments = ["uv", "run", "saga-sidecar", "--port", "\(port)", "--device", "auto"]
+        proc.executableURL = URL(fileURLWithPath: uvPath)
+        proc.arguments = ["run", "saga-sidecar", "--port", "\(port)", "--device", "auto"]
 
         var env = ProcessInfo.processInfo.environment
         env["SAGA_PORT"] = "\(port)"
         env["PYTHONUNBUFFERED"] = "1"
+        // GUI-launched apps mangler ~/.local/bin og brew-paths i PATH
+        let extraPaths = [
+            "\(NSHomeDirectory())/.local/bin",
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ]
+        let currentPath = env["PATH"] ?? ""
+        env["PATH"] = (extraPaths + currentPath.split(separator: ":").map(String.init)).joined(separator: ":")
         proc.environment = env
 
         let stdoutPipe = Pipe()
@@ -145,6 +156,24 @@ public actor SidecarLauncher {
         throw SidecarError.sidecarRootNotFound
     }
 
+    private func locateUv() throws -> String {
+        // Override via env (testing/CI)
+        if let envPath = ProcessInfo.processInfo.environment["SAGA_UV_PATH"] {
+            if FileManager.default.isExecutableFile(atPath: envPath) { return envPath }
+        }
+        let home = NSHomeDirectory()
+        let candidates = [
+            "\(home)/.local/bin/uv",          // Astral installer default
+            "/opt/homebrew/bin/uv",            // Homebrew (Apple Silicon)
+            "/usr/local/bin/uv",               // Homebrew (Intel) / manual
+            "/opt/local/bin/uv",               // MacPorts
+        ]
+        for path in candidates {
+            if FileManager.default.isExecutableFile(atPath: path) { return path }
+        }
+        throw SidecarError.uvNotFound
+    }
+
     private func findFreePort() throws -> UInt16 {
         let socket = Darwin.socket(AF_INET, SOCK_STREAM, 0)
         guard socket >= 0 else { throw SidecarError.portProbeFailed }
@@ -176,6 +205,7 @@ public actor SidecarLauncher {
 
 public enum SidecarError: Error, LocalizedError {
     case sidecarRootNotFound
+    case uvNotFound
     case portProbeFailed
     case exitedDuringStartup(status: Int32)
     case healthTimeout
@@ -184,10 +214,12 @@ public enum SidecarError: Error, LocalizedError {
         switch self {
         case .sidecarRootNotFound:
             return "Kunne ikke finde saga-sidecar/. Sæt SAGA_SIDECAR_ROOT eller kør Saga fra build-mappen."
+        case .uvNotFound:
+            return "Kunne ikke finde 'uv'. Installér via 'curl -LsSf https://astral.sh/uv/install.sh | sh' og prøv igen."
         case .portProbeFailed:
             return "Kunne ikke finde en ledig port til sidecar."
         case .exitedDuringStartup(let status):
-            return "Sidecar afsluttede under opstart (exit \(status)). Tjek at uv er installeret og 'uv sync' er kørt."
+            return "Sidecar afsluttede under opstart (exit \(status)). Tjek at 'uv sync' er kørt i saga-sidecar/."
         case .healthTimeout:
             return "Sidecar svarede ikke på /health inden for 60 sekunder. Modellen er sandsynligvis stadig under indlæsning — vent og prøv igen."
         }
