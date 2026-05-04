@@ -197,16 +197,22 @@ Toggle der skipper ALT routing/LLM/modes — ren dictation til cursor.
 selv hvis brugeren siger "oversæt til engelsk: hej". Kun ren Canary →
 cursor.
 
-## M6 — Custom modes
+## M6 — Custom modes (done · 2026-05-04)
 Bruger-defineret modes via Settings.
 
-- [ ] Mode-editor i Settings: navn, trigger-ord, system-prompt, output-routing
-      (cursor / clipboard / webhook)
-- [ ] Lokal storage som JSON i UserDefaults
-- [ ] Templates: "LinkedIn-post", "Slack-message", "Email-svar i Pavi-stil"
+- [x] `Mode` opdateret til Codable så det kan persisteres som JSON
+- [x] ModeRouter `custom: [Mode]` @Published, persisteret i UserDefaults
+- [x] addCustom / updateCustom / deleteCustom / generateCustomID public API
+- [x] Custom modes vises i ModesSettingsTab over indbyggede med "CUSTOM"-pill
+  + edit-pencil-knap
+- [x] CustomModeEditor sheet: title, triggers (komma-sep), system-prompt
+  (TextEditor), temperature-slider (0-1)
+- [x] "Ny custom mode"-knap i ModesSettingsTab toolbar
+- [x] Edit + delete via sheet med dynamisk role-button
 
-**Acceptance:** Bruger opretter "LinkedIn-mode" med specialized system-prompt;
-"linkedin: vi annoncerer X" → polished LinkedIn-post indsat.
+**Acceptance:** ✅ Bruger opretter "Tweet"-mode med trigger "tweet:" og prompt
+"Lav et tweet (max 280 tegn)…". "tweet: vi annoncerer X" → polished tweet
+indsat ved cursor. Mode persisterer på tværs af app-restart.
 
 ## M7 — Integrations (deferred / skipped)
 

@@ -287,22 +287,52 @@ struct ModesSettingsTab: View {
     @State private var testOutput: String = ""
     @State private var testRunning: Bool = false
     @State private var testError: String?
+    @State private var showNewModeEditor: Bool = false
+    @State private var editingMode: Mode? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Indbyggede modes")
-                    .font(.headline)
-                Text("Tal med en trigger-frase foran for at aktivere en mode. Slå dem fra hvis du vil have ren dictation uden auto-routing.")
+                HStack {
+                    Text("Modes")
+                        .font(.headline)
+                    Spacer()
+                    Button {
+                        showNewModeEditor = true
+                    } label: {
+                        Label("Ny custom mode", systemImage: "plus.circle")
+                    }
+                    .controlSize(.small)
+                }
+                Text("Tal med en trigger-frase foran for at aktivere en mode. Slå dem fra eller lav dine egne nedenfor.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(controller.modes.modes) { mode in
-                        ModeRow(mode: mode)
-                            .environmentObject(controller)
+                VStack(alignment: .leading, spacing: 12) {
+                    if !controller.modes.custom.isEmpty {
+                        Text("Custom (\(controller.modes.custom.count))")
+                            .font(.caption.bold())
+                            .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(controller.modes.custom) { mode in
+                                ModeRow(mode: mode, isCustom: true) {
+                                    editingMode = mode
+                                }
+                                .environmentObject(controller)
+                            }
+                        }
+                    }
+
+                    Text("Indbyggede")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Mode.builtins) { mode in
+                            ModeRow(mode: mode, isCustom: false, onEdit: nil)
+                                .environmentObject(controller)
+                        }
                     }
                 }
             }
@@ -345,11 +375,16 @@ struct ModesSettingsTab: View {
                 }
             }
 
-            Text("Custom modes kommer i M6.")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
         .padding()
+        .sheet(isPresented: $showNewModeEditor) {
+            CustomModeEditor()
+                .environmentObject(controller)
+        }
+        .sheet(item: $editingMode) { mode in
+            CustomModeEditor(existing: mode)
+                .environmentObject(controller)
+        }
     }
 
     private func runTest() {
@@ -373,6 +408,8 @@ struct ModesSettingsTab: View {
 struct ModeRow: View {
     @EnvironmentObject private var controller: SagaController
     let mode: Mode
+    var isCustom: Bool = false
+    var onEdit: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -385,13 +422,33 @@ struct ModeRow: View {
                 .labelsHidden()
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(mode.title).font(.system(size: 13, weight: .medium))
+                HStack(spacing: 6) {
+                    Text(mode.title).font(.system(size: 13, weight: .medium))
+                    if isCustom {
+                        Text("CUSTOM")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor.opacity(0.18))
+                            .foregroundColor(.accentColor)
+                            .cornerRadius(3)
+                    }
+                }
                 Text(mode.triggers.joined(separator: " · "))
                     .font(.caption.monospaced())
                     .foregroundColor(.secondary)
                     .lineLimit(2)
             }
             Spacer()
+            if isCustom, let onEdit {
+                Button {
+                    onEdit()
+                } label: {
+                    Image(systemName: "pencil")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)

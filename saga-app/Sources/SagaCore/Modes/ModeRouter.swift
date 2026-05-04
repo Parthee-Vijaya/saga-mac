@@ -7,9 +7,17 @@ import OSLog
 @MainActor
 public final class ModeRouter: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "modes")
-    private let storageKey = "modeRouter.disabled"
+    private let disabledStorageKey = "modeRouter.disabled"
+    private let customStorageKey = "modeRouter.custom"
 
-    public var modes: [Mode] = Mode.builtins
+    /// Custom modes oprettet af brugeren. Persisteret som JSON i UserDefaults.
+    @Published public private(set) var custom: [Mode] = []
+
+    /// Alle modes — built-ins + custom. Custom kommer efter built-ins så
+    /// trigger-matching tjekker built-ins først (mindre risiko for konflikt).
+    public var modes: [Mode] {
+        Mode.builtins + custom
+    }
 
     /// Sættet af mode-IDer brugeren har slået FRA. Default = ingen er fra.
     /// Gemmes i UserDefaults som komma-separeret string.
@@ -20,6 +28,7 @@ public final class ModeRouter: ObservableObject {
 
     public init() {
         loadDisabled()
+        loadCustom()
     }
 
     public func isEnabled(_ mode: Mode) -> Bool {
@@ -113,16 +122,78 @@ public final class ModeRouter: ObservableObject {
         return nil
     }
 
+    // MARK: - Custom modes
+
+    public func addCustom(_ mode: Mode) {
+        // Forhindrer duplicate-IDer
+        custom.removeAll { $0.id == mode.id }
+        custom.append(mode)
+        persistCustom()
+        log.info("Custom mode tilføjet: \(mode.id, privacy: .public)")
+    }
+
+    public func updateCustom(_ mode: Mode) {
+        if let idx = custom.firstIndex(where: { $0.id == mode.id }) {
+            custom[idx] = mode
+            persistCustom()
+            log.info("Custom mode opdateret: \(mode.id, privacy: .public)")
+        }
+    }
+
+    public func deleteCustom(id: String) {
+        custom.removeAll { $0.id == id }
+        disabled.remove(id)
+        persistCustom()
+        persistDisabled()
+        log.info("Custom mode slettet: \(id, privacy: .public)")
+    }
+
+    public func isCustom(_ mode: Mode) -> Bool {
+        custom.contains(where: { $0.id == mode.id })
+    }
+
+    /// Generér unique ID til en ny custom mode baseret på title.
+    public func generateCustomID(from title: String) -> String {
+        let slug = title.lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .filter { $0.isLetter || $0.isNumber || $0 == "-" }
+        var id = "custom.\(slug)"
+        var counter = 1
+        while custom.contains(where: { $0.id == id }) || Mode.builtins.contains(where: { $0.id == id }) {
+            counter += 1
+            id = "custom.\(slug)-\(counter)"
+        }
+        return id
+    }
+
     // MARK: - Persistence
 
     private func loadDisabled() {
-        let raw = UserDefaults.standard.string(forKey: storageKey) ?? ""
+        let raw = UserDefaults.standard.string(forKey: disabledStorageKey) ?? ""
         disabled = Set(raw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
     }
 
     private func persistDisabled() {
         let joined = disabled.sorted().joined(separator: ",")
-        UserDefaults.standard.set(joined, forKey: storageKey)
+        UserDefaults.standard.set(joined, forKey: disabledStorageKey)
+    }
+
+    private func loadCustom() {
+        guard let data = UserDefaults.standard.data(forKey: customStorageKey) else { return }
+        do {
+            custom = try JSONDecoder().decode([Mode].self, from: data)
+        } catch {
+            log.warning("Kunne ikke læse custom modes: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func persistCustom() {
+        do {
+            let data = try JSONEncoder().encode(custom)
+            UserDefaults.standard.set(data, forKey: customStorageKey)
+        } catch {
+            log.warning("Kunne ikke gemme custom modes: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 
@@ -151,7 +222,7 @@ public enum ModeError: Error, LocalizedError {
     }
 }
 
-public struct Mode: Identifiable, Sendable, Hashable {
+public struct Mode: Identifiable, Sendable, Hashable, Codable {
     public let id: String
     public let title: String
     public let triggers: [String]
