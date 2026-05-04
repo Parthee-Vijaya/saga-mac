@@ -168,6 +168,46 @@ træk Saga.app til Applications.
 Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin guide inkl. Gatekeeper-bypass og
 first-run wizard.
 
+## Fortsætte udvikling fra en anden Mac
+
+Saga's roadmap + state lever i [docs/ROADMAP.md](docs/ROADMAP.md) — det er
+single-source-of-truth for "hvor er vi". Hver fase har en check-box-liste der
+viser præcis hvad der er færdigt og hvad der mangler.
+
+### Quick-start på ny Mac
+
+```bash
+# 1. Klon begge repoer side-om-side (Saga afhænger af canary-coreml)
+mkdir -p ~/projekter && cd ~/projekter
+git clone git@github.com:Parthee-Vijaya/saga-mac.git saga
+git clone git@github.com:Parthee-Vijaya/canary-coreml.git
+
+# 2. Tjek state
+cd saga
+cat docs/ROADMAP.md | head -40   # "Nuværende state"-section øverst
+git log --oneline -10            # senest landed commits
+
+# 3. Generér Xcode-projekt + byg
+cd saga-app
+brew install xcodegen
+xcodegen generate
+open SagaApp.xcodeproj
+# Cmd+R for at bygge og køre. Permissions overlever fordi vi bruger
+# stabil Apple Development signing — du skal ikke granté igen.
+```
+
+### Med Claude Code på den nye Mac
+
+Hvis du kører Claude Code med samme `vidensbase/projekter/saga.md`-memory,
+kan du sige **"load saga"** og den genoptager hvor sidste session slap.
+Memory er per-Claude-installation, så hvis det er en frisk Claude:
+peg den på dette repo + `docs/ROADMAP.md` → "Nuværende state"-sektion
+giver hele kontekst i en mundfuld.
+
+For en langtids-bevarende session-state, bruger Saga `docs/ROADMAP.md` som
+canonical-state og `vidensbase/projekter/saga.md` (lokal memory) som
+session-log med commit-hashes per fase.
+
 ## Setup (udviklere)
 
 ```bash

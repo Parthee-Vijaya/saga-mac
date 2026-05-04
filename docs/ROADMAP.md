@@ -1,5 +1,39 @@
 # Saga — Roadmap
 
+## Nuværende state (sidst opdateret 2026-05-04)
+
+**Hvad virker end-to-end:** Hold Højre Option → tal dansk → tekst ved cursor (Canary CoreML, RTF ~0.14 warm).
+
+**Faser merged til main:**
+
+| Fase | Status |
+|------|--------|
+| M0 (scaffold + foundation) | ✅ done |
+| M0.B-G (live HUD, persistence, signing, polish) | ✅ done |
+| M1 (dictation pipeline) | ✅ done |
+| M2 (LM Studio modes — translate/format/summarize/vibecode/linkedin) | ✅ done |
+| M3 (voice-reminders via "mind mig om...") | ✅ done |
+| M3.B (wake-word "Hej Saga" via on-device SFSpeechRecognizer) | ✅ done |
+| M4 (vision — multi-modal LLM screen-capture) | ✅ done |
+| M5 (document-analysis — PDF/DOCX flagging) | ✅ done |
+| M6 (custom modes editor) | ✅ done |
+| M6.0 (stenograf-mode toggle) | ✅ done |
+| M7 (integrations) | ⏸ skipped per ønske |
+| M8 (DMG-distribution + INSTALL/SMOKE_TEST) | ✅ done |
+
+**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0).
+Næste DMG bygges når brugeren beder — næste release vil typisk være v0.3.0 med M6 + M3.B + Settings-redesign.
+
+**Næste muligheder:**
+- Sideprojekt: hviske-coreml (~10 dage) → drop-in upgrade fra Canary til Hviske
+- M3.B v2: VAD-baseret auto-stop i stedet for fixed 6s timer
+- M4 polish: history af screen-captures + custom prompt-templates pr. visions-trigger
+
+**Cross-Mac development:** se [README.md → "Continuing development"](../README.md#fortsætte-udvikling-fra-en-anden-mac).
+
+---
+
+
 ## M0 — Scaffold (done · 2026-05-04)
 - [x] Repo-struktur, GitHub privat repo, README, ARCHITECTURE, ROADMAP
 - [x] Swift Package + xcodegen project.yml
