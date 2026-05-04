@@ -4,11 +4,18 @@ Hviske er en Conformer-baseret encoder-decoder ASR (2B parametre), finjusteret
 til dansk. Modellen bruger ``trust_remote_code=True`` så Transformers henter
 custom Conformer-kode fra Hugging Face — sørg for at have et tillidsfuldt netværk
 ved første load.
+
+Inference bruger modellens egen ``model.transcribe()``-helper (defineret i den
+custom model-class). Den håndterer prompt-tokens for sprog (`<|da|>`),
+punctuation og auto-chunking af lange clips. Det er DEN officielle API, ikke
+``generate()`` direkte — sidstnævnte producerer multilingual junk uden den
+korrekte prompt.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Literal
 
@@ -40,8 +47,14 @@ def pick_dtype(device: Device) -> torch.dtype:
     if device == "cuda":
         return torch.bfloat16
     if device == "mps":
-        # MPS understøtter ikke alle bf16 ops endnu på alle macOS-versioner
-        return torch.float16
+        # MPS understøtter bf16 på macOS 14+ med PyTorch 2.5+. Override via env:
+        #   SAGA_FORCE_FP32=1  (større numerical safety, ~3× langsommere)
+        #   SAGA_FORCE_FP16=1  (uunderstøttet for Hviske — overflow)
+        if os.getenv("SAGA_FORCE_FP32") == "1":
+            return torch.float32
+        if os.getenv("SAGA_FORCE_FP16") == "1":
+            return torch.float16
+        return torch.bfloat16
     return torch.float32
 
 
@@ -82,7 +95,9 @@ class HviskeASR:
         self,
         audio: np.ndarray,
         sample_rate: int = 16_000,
-        num_beams: int = 1,
+        num_beams: int = 1,  # noqa: ARG002 — bevaret for fremtidig brug; transcribe() bruger greedy
+        language: str = "da",
+        punctuation: bool = True,
     ) -> dict:
         """Transcriberer mono float32 audio. Returnerer { text, duration_ms, inference_ms, rtf }."""
         if not self.is_loaded:
@@ -91,21 +106,21 @@ class HviskeASR:
 
         if audio.ndim != 1:
             raise ValueError(f"Forventede mono audio (1-D), fik shape {audio.shape}")
-        if sample_rate != 16_000:
-            raise ValueError(f"Hviske kræver 16 kHz, fik {sample_rate}")
 
         duration_s = len(audio) / sample_rate
         t0 = time.perf_counter()
 
-        inputs = self._processor(audio, sampling_rate=sample_rate, return_tensors="pt")
-        input_features = inputs["input_features"].to(self.device, dtype=self.dtype)
-
-        gen_kwargs: dict = {"num_beams": num_beams}
-        # Hviske kører dansk eksklusivt → ingen language/task tokens nødvendige
-        # men vi lader model'en bestemme via dens default config
-
-        predicted_ids = self._model.generate(input_features, **gen_kwargs)
-        text = self._processor.batch_decode(predicted_ids, skip_special_tokens=True)[0].strip()
+        # Brug model.transcribe() — den officielle API. Den bygger den korrekte
+        # decoder-prompt med <|startoftranscript|><|da|><|da|><|pnc|>... osv.,
+        # auto-chunker lange clips og samler resultaterne sammen.
+        results = self._model.transcribe(
+            processor=self._processor,
+            language=language,
+            audio_arrays=[audio.astype(np.float32, copy=False)],
+            sample_rates=[sample_rate],
+            punctuation=punctuation,
+        )
+        text = (results[0] if results else "").strip()
 
         inference_s = time.perf_counter() - t0
         rtf = inference_s / duration_s if duration_s > 0 else 0.0
@@ -118,11 +133,14 @@ class HviskeASR:
         }
 
     def warmup(self) -> None:
-        """Kør én kort transcription for at varme op (cudnn / metal kernel-compilation)."""
+        """Kør én kort transcription for at varme op (cudnn / metal kernel-compilation).
+
+        Bruger 2 sekunder stilhed — modellen returnerer typisk tom streng eller minimal punktuering.
+        """
         if not self.is_loaded:
             self.load()
-        silence = np.zeros(16_000, dtype=np.float32)  # 1 sekund stilhed
+        silence = np.zeros(32_000, dtype=np.float32)  # 2 sekunder stilhed
         try:
             self.transcribe(silence)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Warmup fejlede (ikke kritisk): %s", e)

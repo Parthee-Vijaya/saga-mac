@@ -19,6 +19,10 @@ public final class HviskeBridge: @unchecked Sendable {
         queue.sync { self._port = port }
     }
 
+    public var currentPort: UInt16? {
+        queue.sync { _port }
+    }
+
     private var port: UInt16? {
         queue.sync { _port }
     }

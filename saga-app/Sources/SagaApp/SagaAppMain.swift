@@ -3,30 +3,34 @@ import SwiftUI
 
 @main
 struct SagaAppMain: App {
-    @NSApplicationDelegateAdaptor(SagaAppDelegate.self) private var appDelegate
+    @StateObject private var controller = SagaController()
+
+    init() {
+        // Start backend så snart app'en spawner — ikke vente på at popover åbnes
+        // (kan ikke kalde StateObject-property i init, så vi triggers via .task)
+    }
 
     var body: some Scene {
+        MenuBarExtra {
+            StatusView()
+                .environmentObject(controller)
+                .frame(width: 360)
+                .task { await controller.bootIfNeeded() }
+        } label: {
+            Label("Saga", systemImage: controller.menuBarIconName)
+        }
+        .menuBarExtraStyle(.window)
+
         Settings {
             SettingsView()
-                .environmentObject(appDelegate.controller)
+                .environmentObject(controller)
         }
-    }
-}
 
-@MainActor
-final class SagaAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    let controller = SagaController()
-
-    nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
-        Task { @MainActor in self.controller.start() }
-    }
-
-    nonisolated func applicationWillTerminate(_ notification: Notification) {
-        Task { @MainActor in self.controller.stop() }
-    }
-
-    nonisolated func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        Task { @MainActor in self.controller.menubar.openSettings() }
-        return true
+        Window("Saga – Historik", id: "history") {
+            HistoryWindow()
+                .environmentObject(controller)
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 640, height: 480)
     }
 }

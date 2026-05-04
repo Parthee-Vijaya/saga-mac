@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 public struct SettingsView: View {
-    @EnvironmentObject private var appDelegate: SagaAppDelegate
+    @EnvironmentObject private var controller: SagaController
 
     public init() {}
 

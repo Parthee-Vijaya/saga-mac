@@ -8,7 +8,6 @@ import OSLog
 public final class SagaController: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "controller")
 
-    public let menubar: MenubarController
     public let hud: RecordingHUDController
     public let hotkeys: HotkeyManager
     public let audio: AudioCapture
@@ -17,11 +16,14 @@ public final class SagaController: ObservableObject {
     public let hviske: HviskeBridge
     public let lmStudio: LMStudioBridge
     public let modes: ModeRouter
+    public let health: HealthMonitor
+    public let history: HistoryStore
 
     @Published public private(set) var state: SagaState = .idle
+    @Published public private(set) var lastError: String?
+    @Published public private(set) var booted = false
 
     public init() {
-        self.menubar = MenubarController()
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
         self.audio = AudioCapture()
@@ -30,41 +32,71 @@ public final class SagaController: ObservableObject {
         self.hviske = HviskeBridge()
         self.lmStudio = LMStudioBridge()
         self.modes = ModeRouter()
+        self.health = HealthMonitor()
+        self.history = HistoryStore()
     }
 
-    public func start() {
-        log.info("Saga starter")
-        menubar.attach(controller: self)
-        hud.attach(controller: self)
+    public var menuBarIconName: String {
+        switch state {
+        case .idle: return health.sidecar.isHappy ? "waveform.circle" : "waveform.circle.fill"
+        case .recording: return "mic.fill"
+        case .transcribing: return "waveform"
+        case .routing: return "sparkles"
+        }
+    }
 
-        // Start sidecar (async, vi blocker ikke UI)
+    /// Kaldes en gang fra MenuBarExtra-task. Idempotent.
+    public func bootIfNeeded() async {
+        guard !booted else { return }
+        booted = true
+        log.info("Saga booter")
+
+        hud.attach(controller: self)
+        health.attach(hviske: hviske)
+        health.start()
+
+        // Start sidecar i baggrunden
         Task { [sidecar, hviske] in
             do {
                 let port = try await sidecar.startIfNeeded()
                 hviske.update(port: port)
             } catch {
                 self.log.error("Kunne ikke starte sidecar: \(error.localizedDescription)")
-                self.menubar.show(error: "Hviske-sidecar kunne ikke starte. Kør scripts/setup.sh og prøv igen.")
+                self.lastError = "Sidecar startede ikke: \(error.localizedDescription)"
             }
         }
 
-        // Aktivér hotkey-listening (kræver AX-permission)
+        // Aktivér hotkey-listening
         hotkeys.onHoldStart = { [weak self] in self?.handleHoldStart() }
         hotkeys.onHoldEnd = { [weak self] in self?.handleHoldEnd() }
         hotkeys.startListening()
     }
 
-    public func stop() {
-        log.info("Saga stopper")
+    public func shutdown() async {
+        log.info("Saga lukker ned")
         hotkeys.stopListening()
         audio.stop()
-        Task { await sidecar.shutdown() }
+        health.stop()
+        await sidecar.shutdown()
+    }
+
+    public func restartSidecar() {
+        Task { [sidecar, hviske] in
+            await sidecar.shutdown()
+            do {
+                let port = try await sidecar.startIfNeeded()
+                hviske.update(port: port)
+            } catch {
+                self.lastError = "Genstart fejlede: \(error.localizedDescription)"
+            }
+        }
     }
 
     // MARK: - Recording lifecycle
 
     private func handleHoldStart() {
         guard state == .idle else { return }
+        lastError = nil
         state = .recording
         hud.show()
         audio.start()
@@ -89,17 +121,41 @@ public final class SagaController: ObservableObject {
                 state = .routing
                 hud.update(state: .routing)
 
-                let result = try await modes.route(text: transcript.text, controller: self)
+                let routed = try await modes.route(text: transcript.text, controller: self)
 
-                cursor.type(result)
+                cursor.type(routed)
+
+                let modeId = routed != transcript.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ? matchedModeId(for: transcript.text)
+                    : nil
+
+                history.append(TranscriptEntry(
+                    rawText: transcript.text,
+                    processedText: routed,
+                    modeId: modeId,
+                    durationMs: transcript.durationMs,
+                    inferenceMs: transcript.inferenceMs
+                ))
+
                 state = .idle
                 hud.dismiss()
             } catch {
                 log.error("Pipeline fejlede: \(error.localizedDescription)")
+                lastError = error.localizedDescription
                 state = .idle
                 hud.show(error: error)
             }
         }
+    }
+
+    private func matchedModeId(for text: String) -> String? {
+        let lower = text.lowercased()
+        for mode in modes.modes where modes.enabled.contains(mode.id) {
+            for trigger in mode.triggers where lower.hasPrefix(trigger.lowercased()) {
+                return mode.id
+            }
+        }
+        return nil
     }
 }
 
