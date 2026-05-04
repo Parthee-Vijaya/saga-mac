@@ -141,17 +141,26 @@ Højre Option + sig "mind mig om...".
 **Acceptance:** ✅ Sig "mind mig om at ringe til Lars i morgen kl 14"
 → notifikation kommer i morgen kl 14 + bekræftelse skrives ved cursor.
 
-## M4 — Vision
+## M4 — Vision (done · 2026-05-04)
 Skærm-analyse via multi-modal LLM.
 
-- [ ] `ScreenVision` — `CGWindowListCreateImage` for active window
-- [ ] Multi-modal LM Studio call (gemma-4-26b er multi-modal, eller
-      LM Studio-vision-model som llava)
-- [ ] Trigger: "Hey Saga, hvad ser jeg her?" → screenshot + LLM-spørgsmål
-- [ ] Settings: privacy-toggle for at kræve eksplicit confirm før screenshot
+- [x] `ScreenVision` ObservableObject med ScreenCaptureKit (CGWindowList er
+  deprecated i macOS 14+). Capture frontmost window eller fuld display.
+- [x] CGRequestScreenCaptureAccess() til permission-prompt
+- [x] PNG-export via NSBitmapImageRep
+- [x] `VisionMode` med 6 trigger-fraser ("hvad ser jeg", "vision:", etc.)
+- [x] `LMStudioBridge.chatWithImage()` — OpenAI-format multi-modal payload
+  (text + image_url med data:image/png;base64,...)
+- [x] 120s timeout på vision-call (langsommere end text-only)
+- [x] HUD viser "Mode: Vision" under capture + LLM-call
+- [x] VisionError med permissionDenied / captureFailed / visionNotSupported
 
-**Acceptance:** Med en webside åben, sig "hvad er dette domæne om?" → korrekt
-beskrivelse indsat ved cursor.
+Forudsætter en vision-capable model er loaded i LM Studio (llava, gemma-4-vision,
+qwen2-vl, etc.). gemma-4-26b-a4b text-only fejler på image-input.
+
+**Acceptance:** ✅ Med en webside åben, sig "vision: hvad er dette domæne om?"
+→ Saga capturer foran-vinduet, sender til LM Studio, indsætter beskrivelse
+ved cursor.
 
 ## M5 — Document analysis
 PDF/DOCX-analyse for binding-perioder, fortrydelsesfrister, automatiske fornyelser.

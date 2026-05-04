@@ -33,6 +33,9 @@ public final class ModeRouter: ObservableObject {
         if ReminderMode.matches(trimmed).matched {
             return Mode(id: "reminder", title: "Reminder", triggers: ReminderMode.triggers, systemPrompt: "")
         }
+        if VisionMode.matches(trimmed).matched {
+            return Mode(id: "vision", title: "Vision", triggers: VisionMode.triggers, systemPrompt: "")
+        }
         return matchMode(in: trimmed)?.mode
     }
 
@@ -49,22 +52,31 @@ public final class ModeRouter: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return RouteResult(text: "", mode: nil) }
 
-        // Reminder-mode er special-cased: håndteres af ReminderMode i stedet for
-        // at gå gennem den generiske LLM-chat (kræver JSON-parsing + scheduling)
+        // Reminder-mode er special-cased
         let reminderMatch = ReminderMode.matches(trimmed)
         if reminderMatch.matched {
             log.info("Match: reminder, payload=\(reminderMatch.payload.prefix(80))")
-            let reminderModeMarker = Mode(
-                id: "reminder",
-                title: "Reminder",
-                triggers: ReminderMode.triggers,
-                systemPrompt: ""
-            )
-            activeMode = reminderModeMarker
+            let marker = Mode(id: "reminder", title: "Reminder", triggers: ReminderMode.triggers, systemPrompt: "")
+            activeMode = marker
             defer { activeMode = nil }
             do {
                 let confirmation = try await ReminderMode.run(payload: reminderMatch.payload, controller: controller)
-                return RouteResult(text: confirmation, mode: reminderModeMarker)
+                return RouteResult(text: confirmation, mode: marker)
+            } catch {
+                throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+            }
+        }
+
+        // Vision-mode er special-cased — kræver screen-capture + multi-modal LLM
+        let visionMatch = VisionMode.matches(trimmed)
+        if visionMatch.matched {
+            log.info("Match: vision, payload=\(visionMatch.payload.prefix(80))")
+            let marker = Mode(id: "vision", title: "Vision", triggers: VisionMode.triggers, systemPrompt: "")
+            activeMode = marker
+            defer { activeMode = nil }
+            do {
+                let description = try await VisionMode.run(payload: visionMatch.payload, controller: controller)
+                return RouteResult(text: description, mode: marker)
             } catch {
                 throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
             }
