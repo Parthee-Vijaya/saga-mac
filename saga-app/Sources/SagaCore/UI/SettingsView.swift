@@ -21,26 +21,28 @@ public struct SettingsView: View {
 }
 
 struct GeneralSettingsTab: View {
+    @EnvironmentObject private var controller: SagaController
+    @AppStorage("hotkey") private var hotkeyRaw: String = Hotkey.rightOption.rawValue
     @AppStorage("lmStudioBaseURL") private var lmStudioBaseURL: String = "http://localhost:1234/v1"
     @AppStorage("lmStudioModel") private var lmStudioModel: String = "gemma-4-26b-a4b"
-    @AppStorage("hviskeDevice") private var hviskeDevice: String = "auto"
 
     var body: some View {
         Form {
-            Section("LM Studio") {
-                TextField("Base URL", text: $lmStudioBaseURL)
-                TextField("Model", text: $lmStudioModel)
-                Text("Saga forventer LM Studio kører lokalt og eksponerer en OpenAI-kompatibel API.")
+            Section("Push-to-talk-tast") {
+                Picker("Hotkey", selection: $hotkeyRaw) {
+                    ForEach(Hotkey.allCases, id: \.rawValue) { key in
+                        Text(key.displayName).tag(key.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                Text(hotkeyHelp)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            Section("Hviske") {
-                Picker("Device", selection: $hviskeDevice) {
-                    Text("Auto").tag("auto")
-                    Text("MPS (Apple GPU)").tag("mps")
-                    Text("CPU (langsom)").tag("cpu")
-                }
-                Text("Skift kræver genstart af Saga.")
+            Section("LM Studio") {
+                TextField("Base URL", text: $lmStudioBaseURL)
+                TextField("Model", text: $lmStudioModel)
+                Text("Saga forventer LM Studio kører lokalt og eksponerer en OpenAI-kompatibel API. Bruges kun til mode-routing (oversæt, opsummer osv.) — pure dictation virker uden.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -53,7 +55,7 @@ struct GeneralSettingsTab: View {
                     title: "Accessibility",
                     status: AXIsProcessTrusted() ? "Tilladt" : "Mangler"
                 )
-                Button("Åbn System Settings → Privacy & Security") {
+                Button("Åbn Privacy & Security") {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                         NSWorkspace.shared.open(url)
                     }
@@ -61,6 +63,23 @@ struct GeneralSettingsTab: View {
             }
         }
         .padding()
+        .onChange(of: hotkeyRaw) { _, _ in
+            // Reload event-tap så ny hotkey aktiveres uden genstart
+            controller.hotkeys.stopListening()
+            controller.hotkeys.startListening()
+        }
+    }
+
+    private var hotkeyHelp: String {
+        guard let key = Hotkey(rawValue: hotkeyRaw) else { return "" }
+        switch key {
+        case .fn:
+            return "Apple's globe-tast. Virker IKKE på Logitech/3rd-party keyboards — vælg Højre Option i stedet."
+        case .rightOption, .leftOption:
+            return "Universal — virker på alle keyboards inkl. Logitech MX, Magic Keyboard, USB-keyboards."
+        case .rightCommand, .rightControl:
+            return "Sjældent brugt til normalt arbejde. Sikker hvis du har Option-tasten optaget af noget andet."
+        }
     }
 }
 
@@ -104,7 +123,7 @@ struct AboutTab: View {
                 .padding(.horizontal)
             Divider().padding(.vertical, 8)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Drevet af Hviske v5.3 (CC BY-NC 4.0) og lokal LM Studio.")
+                Text("Drevet af NVIDIA Canary-1b-v2 (CC BY 4.0) → CoreML + lokal LM Studio.")
                 Text("Ingen telemetri. Ingen cloud. Personlig brug.")
             }
             .font(.caption)

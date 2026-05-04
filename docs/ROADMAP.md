@@ -46,6 +46,41 @@ End-to-end: Højre Option → tale → Canary → cursor.
 **Acceptance:** ✅ Bruger holder ⌥, siger sætning, slipper, ser teksten indsat
 i TextEdit/Slack/Claude Code/browser. Verificeret 2026-05-04.
 
+---
+
+## M8 — Distribution (in progress)
+
+Mål: én .dmg som kan dropped på en frisk Mac og virker out-of-the-box.
+
+### M8.A — Hotkey-picker + Apple-keyboard support (done · 2026-05-04)
+- [x] Picker-kontrol i Settings → Generelt med alle 5 hotkey-options
+- [x] Live reload af event-tap når brugeren ændrer hotkey (ingen restart)
+- [x] Help-tekst forklarer hvilke keyboards der virker med hver mulighed
+- [x] Apple-keyboard `Fn`-tast er en valid option (kCGEventFlagMaskSecondaryFn)
+- [x] Default forbliver Højre Option (universel kompatibilitet)
+
+### M8.B — LM Studio auto-detect (next)
+- [ ] Scan localhost:1234, 1235, 8080 for OpenAI-kompatible /v1/models endpoints
+- [ ] Auto-fyld base URL + foreslå loaded model
+- [ ] Settings-knap "Detect again" til manuel rescan
+- [ ] Health-status viser "venter på LM Studio" hvis ingen findes
+
+### M8.C — DMG distribution
+- [ ] Build-script: bundle CanaryEncoder/Decoder/Preprocessor.mlpackage i Saga.app/Contents/Resources/mlpackage/
+- [ ] Release-build configuration
+- [ ] hdiutil til at lave .dmg med Saga.app + symlink → /Applications + README
+- [ ] Test ad-hoc-signed DMG på frisk Mac (right-click → Open første gang)
+
+### M8.D — First-run setup wizard
+- [ ] Detect manglende prerequisites (mic permission, AX permission, mlpackages)
+- [ ] Onboarding-vindue: vælg hotkey, granté permissions, opt-in til LM Studio
+- [ ] Vises kun på første launch og ved manglende permissions
+
+### M8.E — Distribution README + smoke-test
+- [ ] INSTALL.md med Gatekeeper-bypass-instruktioner
+- [ ] Smoke-test checklist på frisk Mac (Air, Pro, Studio)
+- [ ] Versionering via tag + GitHub Releases
+
 ## M2 — LM Studio modes
 LLM-baserede modes — translate, format, summarize, vibe-code.
 
