@@ -34,5 +34,7 @@
 	<string>Saga bruger mikrofonen til at lytte når du holder Fn-tasten nede, så din tale kan transkriberes til tekst.</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Saga bruger skærmoptagelse til vision-mode, hvor den kan beskrive eller besvare spørgsmål om indholdet på skærmen.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Saga bruger Apple's on-device speech recognition til at lytte efter wake-word ('Hej Saga'). Audio sendes ikke til Apple's cloud.</string>
 </dict>
 </plist>

@@ -132,11 +132,21 @@ udskudt til M3.B (kræver Snowboy/Porcupine eller continuous SFSpeechRecognizer
   med cancel-knap + "Ryd alt"
 - [x] HUD viser "Mode: Reminder" under routing
 
-### M3.B — Wake-word (deferred)
-Snowboy er deprecated, Porcupine kræver kommerciel licens. Continuous
-SFSpeechRecognizer er cloud-afhængig medmindre `requiresOnDeviceRecognition=true`
-hvilket har dårlig kvalitet. Realistisk indsats: ~3-5 dage. Foreløbig: brug
-Højre Option + sig "mind mig om...".
+### M3.B — Wake-word (done · 2026-05-04)
+- [x] WakeWordDetector med SFSpeechRecognizer (`requiresOnDeviceRecognition=true`)
+- [x] Dansk locale med fallback til en-US hvis dansk ikke understøttes lokalt
+- [x] Continuous AVAudioEngine input → SFSpeechAudioBufferRecognitionRequest
+- [x] Match-fraser: "hej saga", "hey saga", "okay saga"
+- [x] Pause/resume API så push-to-talk kan tage over uden konflikt
+- [x] Auto-restart ved final-result eller fejl (sessions timer typisk efter ~1 min)
+- [x] Settings-toggle "Aktivér 'Hej Saga' wake-word" (default OFF)
+- [x] Permission-request via SFSpeechRecognizer.requestAuthorization() med
+      auto-disable hvis denied
+- [x] handleWakeWordTrigger: simulér Fn-press, auto-stop efter wakeWordRecordingDuration (6 sek)
+- [x] NSSpeechRecognitionUsageDescription tilføjet til Info.plist
+
+**Acceptance:** ✅ Med wake-word toggled ON, sig "Hej Saga ring til Lars" →
+Saga starter optagelse, transkriberer i 6 sek, indsætter ved cursor.
 
 **Acceptance:** ✅ Sig "mind mig om at ringe til Lars i morgen kl 14"
 → notifikation kommer i morgen kl 14 + bekræftelse skrives ved cursor.
