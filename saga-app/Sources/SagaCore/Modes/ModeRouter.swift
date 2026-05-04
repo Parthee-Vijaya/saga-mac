@@ -29,7 +29,11 @@ public final class ModeRouter: ObservableObject {
     /// Tjek hurtigt om en tekst ville matche en mode — uden at kalde LM Studio.
     /// Bruges af UI til at vise hvilken mode der er ved at blive aktiveret.
     public func previewMatch(for text: String) -> Mode? {
-        matchMode(in: text.trimmingCharacters(in: .whitespacesAndNewlines))?.mode
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ReminderMode.matches(trimmed).matched {
+            return Mode(id: "reminder", title: "Reminder", triggers: ReminderMode.triggers, systemPrompt: "")
+        }
+        return matchMode(in: trimmed)?.mode
     }
 
     public func setEnabled(_ enabled: Bool, for mode: Mode) {
@@ -45,6 +49,27 @@ public final class ModeRouter: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return RouteResult(text: "", mode: nil) }
 
+        // Reminder-mode er special-cased: håndteres af ReminderMode i stedet for
+        // at gå gennem den generiske LLM-chat (kræver JSON-parsing + scheduling)
+        let reminderMatch = ReminderMode.matches(trimmed)
+        if reminderMatch.matched {
+            log.info("Match: reminder, payload=\(reminderMatch.payload.prefix(80))")
+            let reminderModeMarker = Mode(
+                id: "reminder",
+                title: "Reminder",
+                triggers: ReminderMode.triggers,
+                systemPrompt: ""
+            )
+            activeMode = reminderModeMarker
+            defer { activeMode = nil }
+            do {
+                let confirmation = try await ReminderMode.run(payload: reminderMatch.payload, controller: controller)
+                return RouteResult(text: confirmation, mode: reminderModeMarker)
+            } catch {
+                throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+            }
+        }
+
         guard let match = matchMode(in: trimmed) else {
             // Ingen mode → pure dictation
             return RouteResult(text: trimmed, mode: nil)
@@ -59,8 +84,6 @@ public final class ModeRouter: ObservableObject {
             return RouteResult(text: processed, mode: match.mode)
         } catch {
             log.error("Mode \(match.mode.id) fejlede: \(error.localizedDescription, privacy: .public)")
-            // Graceful fallback: hvis LM Studio fejler, indsæt rå-transkription
-            // i stedet for at intet sker. Bruger får så minimum sin tale tilbage.
             throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
         }
     }

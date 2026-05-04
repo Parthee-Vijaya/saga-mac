@@ -87,6 +87,16 @@ public final class LMStudioBridge: @unchecked Sendable {
         temperature: Double = 0.3,
         maxTokens: Int = 2048
     ) async throws -> String {
+        try await chat(system: system, user: user, temperature: temperature, maxTokens: maxTokens, internal: ())
+    }
+
+    private func chat(
+        system: String,
+        user: String,
+        temperature: Double,
+        maxTokens: Int,
+        internal: Void
+    ) async throws -> String {
         let (baseURL, model) = queue.sync { (_baseURL, _model) }
         let url = baseURL.appendingPathComponent("chat/completions")
 
