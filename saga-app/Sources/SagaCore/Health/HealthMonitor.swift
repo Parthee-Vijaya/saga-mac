@@ -100,9 +100,5 @@ public enum LMStudioHealth: Equatable, Sendable {
     public var isHappy: Bool { if case .ready = self { return true } else { return false } }
 }
 
-private struct LMStudioModels: Codable {
-    let data: [Model]
-    struct Model: Codable {
-        let id: String
-    }
-}
+// LMStudioModels-typen er nu defineret internt i LMStudioBridge.swift
+// (delt mellem HealthMonitor og discovery-flow).

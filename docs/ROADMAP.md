@@ -59,11 +59,14 @@ Mål: én .dmg som kan dropped på en frisk Mac og virker out-of-the-box.
 - [x] Apple-keyboard `Fn`-tast er en valid option (kCGEventFlagMaskSecondaryFn)
 - [x] Default forbliver Højre Option (universel kompatibilitet)
 
-### M8.B — LM Studio auto-detect (next)
-- [ ] Scan localhost:1234, 1235, 8080 for OpenAI-kompatible /v1/models endpoints
-- [ ] Auto-fyld base URL + foreslå loaded model
-- [ ] Settings-knap "Detect again" til manuel rescan
-- [ ] Health-status viser "venter på LM Studio" hvis ingen findes
+### M8.B — LM Studio auto-detect (done · 2026-05-04)
+- [x] Scan localhost:1234, 1235, 8080, 5000, 11434, 8000 parallelt med 1.5s timeout
+- [x] `LMStudioBridge.discover()` returnerer DiscoveredEndpoint-array sorteret efter port
+- [x] Auto-configure ved boot: hvis bruger ikke har sat custom URL → tag første fundne
+- [x] SettingsView: liste over fundne endpoints med radio-button-valg
+- [x] "Find LM Studio igen"-knap til manuel rescan
+- [x] Manuel base URL + model TextField bevaret som override
+- [x] Verificeret: Saga fandt LM Studio på port 1234 ved boot, log: "fandt 1 endpoints"
 
 ### M8.C — DMG distribution
 - [ ] Build-script: bundle CanaryEncoder/Decoder/Preprocessor.mlpackage i Saga.app/Contents/Resources/mlpackage/

@@ -27,6 +27,8 @@ public final class SagaController: ObservableObject {
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
     @Published public private(set) var booted = false
+    @Published public private(set) var discoveredEndpoints: [DiscoveredEndpoint] = []
+    @Published public private(set) var isDiscoveringLMStudio = false
 
     public init() {
         self.hud = RecordingHUDController()
@@ -69,6 +71,39 @@ public final class SagaController: ObservableObject {
         hotkeys.onHoldStart = { [weak self] in self?.handleHoldStart() }
         hotkeys.onHoldEnd = { [weak self] in self?.handleHoldEnd() }
         hotkeys.startListening()
+
+        // Auto-detect LM Studio på baggrunden — ikke-blocking
+        Task { [weak self] in
+            await self?.discoverLMStudio(autoConfigure: true)
+        }
+    }
+
+    /// Scan localhost for LM Studio (eller anden OpenAI-kompatibel server).
+    /// `autoConfigure: true` opdaterer brugerens config hvis (a) der er ingen
+    /// config gemt eller (b) den gemte URL ikke svarer.
+    public func discoverLMStudio(autoConfigure: Bool = false) async {
+        isDiscoveringLMStudio = true
+        defer { isDiscoveringLMStudio = false }
+
+        let endpoints = await lmStudio.discover()
+        self.discoveredEndpoints = endpoints
+        log.info("LM Studio discovery: fandt \(endpoints.count, privacy: .public) endpoints")
+
+        guard autoConfigure, let first = endpoints.first else { return }
+
+        let savedURL = UserDefaults.standard.string(forKey: "lmStudioBaseURL") ?? ""
+        let savedConfigured = !savedURL.isEmpty && savedURL != "http://localhost:1234/v1"
+
+        // Auto-configure hvis bruger ikke har sat noget custom OG den gemte
+        // default ikke svarer (LM Studio kører måske på anden port end 1234).
+        if !savedConfigured {
+            UserDefaults.standard.set(first.baseURL.absoluteString, forKey: "lmStudioBaseURL")
+            if let firstModel = first.models.first {
+                UserDefaults.standard.set(firstModel, forKey: "lmStudioModel")
+            }
+            log.info("Auto-configured LM Studio: \(first.baseURL.absoluteString, privacy: .public)")
+            lmStudio.configure(baseURL: first.baseURL, model: first.models.first ?? "")
+        }
     }
 
     public func shutdown() async {

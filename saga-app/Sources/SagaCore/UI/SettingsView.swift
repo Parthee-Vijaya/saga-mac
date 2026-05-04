@@ -40,11 +40,11 @@ struct GeneralSettingsTab: View {
                     .foregroundColor(.secondary)
             }
             Section("LM Studio") {
-                TextField("Base URL", text: $lmStudioBaseURL)
-                TextField("Model", text: $lmStudioModel)
-                Text("Saga forventer LM Studio kører lokalt og eksponerer en OpenAI-kompatibel API. Bruges kun til mode-routing (oversæt, opsummer osv.) — pure dictation virker uden.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                LMStudioDiscoverySection(
+                    baseURL: $lmStudioBaseURL,
+                    model: $lmStudioModel
+                )
+                .environmentObject(controller)
             }
             Section("Permissions") {
                 PermissionStatusRow(
@@ -79,6 +79,85 @@ struct GeneralSettingsTab: View {
             return "Universal — virker på alle keyboards inkl. Logitech MX, Magic Keyboard, USB-keyboards."
         case .rightCommand, .rightControl:
             return "Sjældent brugt til normalt arbejde. Sikker hvis du har Option-tasten optaget af noget andet."
+        }
+    }
+}
+
+struct LMStudioDiscoverySection: View {
+    @EnvironmentObject private var controller: SagaController
+    @Binding var baseURL: String
+    @Binding var model: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button {
+                    Task { await controller.discoverLMStudio() }
+                } label: {
+                    if controller.isDiscoveringLMStudio {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.mini)
+                            Text("Søger…")
+                        }
+                    } else {
+                        Label("Find LM Studio igen", systemImage: "arrow.clockwise")
+                    }
+                }
+                .disabled(controller.isDiscoveringLMStudio)
+
+                Spacer()
+
+                if !controller.discoveredEndpoints.isEmpty {
+                    Text("\(controller.discoveredEndpoints.count) fundet")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+            }
+
+            if !controller.discoveredEndpoints.isEmpty {
+                ForEach(controller.discoveredEndpoints) { endpoint in
+                    Button {
+                        baseURL = endpoint.baseURL.absoluteString
+                        if let firstModel = endpoint.models.first {
+                            model = firstModel
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: baseURL == endpoint.baseURL.absoluteString ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(.accentColor)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("localhost:\(endpoint.port)")
+                                    .font(.system(size: 12, weight: .medium))
+                                Text(endpoint.models.joined(separator: ", "))
+                                    .font(.caption.monospaced())
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else if !controller.isDiscoveringLMStudio {
+                Text("Ingen LM Studio fundet på localhost. Start LM Studio og klik 'Find igen'.")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+
+            Divider().padding(.vertical, 4)
+
+            TextField("Base URL", text: $baseURL)
+                .textFieldStyle(.roundedBorder)
+                .font(.caption.monospaced())
+            TextField("Model", text: $model)
+                .textFieldStyle(.roundedBorder)
+                .font(.caption.monospaced())
+
+            Text("Saga scanner localhost-porte 1234, 1235, 8080, 5000, 11434, 8000 ved hver app-start. Bruges kun til mode-routing — pure dictation virker uden.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 }
