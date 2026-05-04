@@ -89,10 +89,14 @@ Mål: én .dmg som kan dropped på en frisk Mac og virker out-of-the-box.
 - [x] NSWindowDelegate: marker firstRunComplete også hvis bruger lukker via X-knap
 - [x] Verificeret: window åbner ved fresh launch (firstRunComplete=false)
 
-### M8.E — Distribution README + smoke-test
-- [ ] INSTALL.md med Gatekeeper-bypass-instruktioner
-- [ ] Smoke-test checklist på frisk Mac (Air, Pro, Studio)
-- [ ] Versionering via tag + GitHub Releases
+### M8.E — Distribution README + smoke-test (done · 2026-05-04)
+- [x] `docs/INSTALL.md` — slutbruger-guide: krav, 3-trins install, Gatekeeper-bypass, fejlfinding, afinstallation, privacy
+- [x] `docs/SMOKE_TEST.md` — 7-trins manuel checklist for QA på frisk Mac
+  (DMG-mount → first-launch → wizard → dictation → status-menu → settings → persistens)
+- [x] README.md har nu separat "Installation (slutbrugere)" + "Setup (udviklere)"
+  sektion med link til build-dmg.sh
+- [x] Forventet performance-tabel for M-series Mac
+- [x] DMG rebuilt med M8.B-D features (auto-detect + first-run wizard) — 1.7 GB
 
 ## M2 — LM Studio modes
 LLM-baserede modes — translate, format, summarize, vibe-code.

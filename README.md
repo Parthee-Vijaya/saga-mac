@@ -100,7 +100,13 @@ LM Studio app fylder ~200 MB selv (separat installation fra `lmstudio.ai`).
 | **+ LM Studio + gemma-4-26b** | 18 GB | 24 GB |
 | **+ macOS + browsere kørende** | — | ~30 GB anbefalet |
 
-## Setup
+## Installation (slutbrugere)
+
+Hent seneste DMG fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases) →
+træk Saga.app til Applications. Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin
+guide inkl. Gatekeeper-bypass og first-run wizard.
+
+## Setup (udviklere)
 
 ```bash
 # Forudsætninger
@@ -131,6 +137,15 @@ open SagaApp.xcodeproj
 For brugere uden Apple Developer-konto: fjern `CODE_SIGN_IDENTITY` og
 `DEVELOPMENT_TEAM` linjerne i `saga-app/project.yml` — så bygger den ad-hoc
 (virker, men permissions skal grantes på ny ved hver rebuild).
+
+### Bygge DMG til distribution
+
+```bash
+./scripts/build-dmg.sh
+# → dist/Saga-X.Y.Z.dmg (1.7 GB med mlpackages bundlet)
+```
+
+Test DMG'en på en frisk Mac vha. [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md).
 
 ## Brug
 
