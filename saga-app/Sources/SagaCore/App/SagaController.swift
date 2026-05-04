@@ -25,6 +25,7 @@ public final class SagaController: ObservableObject {
     public let history: HistoryStore
     public let reminders: ReminderEngine
     public let vision: ScreenVision
+    public let documents: DocumentAnalyzer
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -45,6 +46,7 @@ public final class SagaController: ObservableObject {
         self.history = HistoryStore()
         self.reminders = ReminderEngine()
         self.vision = ScreenVision()
+        self.documents = DocumentAnalyzer()
     }
 
     public var menuBarIconName: String {

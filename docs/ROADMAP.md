@@ -162,19 +162,27 @@ qwen2-vl, etc.). gemma-4-26b-a4b text-only fejler på image-input.
 → Saga capturer foran-vinduet, sender til LM Studio, indsætter beskrivelse
 ved cursor.
 
-## M5 — Document analysis
+## M5 — Document analysis (done · 2026-05-04)
 PDF/DOCX-analyse for binding-perioder, fortrydelsesfrister, automatiske fornyelser.
 
-- [ ] File picker via `NSOpenPanel`
-- [ ] PDF-parsing via `PDFKit`
-- [ ] DOCX-parsing via custom XML eller bundlet Python-helper
-- [ ] `DocumentAnalyzeMode` — chunking + LLM med specialized system prompt
-      ("flag binding-perioder, fortrydelsesfrister, automatiske fornyelser,
-      skjulte gebyrer")
-- [ ] Resultat-view: side-by-side dokument + flagged spans
+- [x] `DocumentAnalyzer` ObservableObject med @Published lastResult + isAnalyzing
+- [x] File picker via NSOpenPanel (PDF, DOCX, RTF, TXT)
+- [x] PDF-extraction via PDFKit (siderwise concat med dobbelt-newline)
+- [x] DOCX/RTF via NSAttributedString.init(data:options:documentAttributes:)
+  — macOS-built-in, ingen ZIP-extraction nødvendig
+- [x] Chunking på paragraph-grænser, max 6000 chars per chunk
+- [x] LLM system-prompt med strict JSON-output: 6 kategorier (binding/fortrydelse/
+  fornyelse/gebyr/opsigelse/andet) + 3 severity-niveauer (lav/medium/høj)
+- [x] Per-chunk LLM-call med "Sektion X af Y"-prefix for kontekst
+- [x] Findings-deduplication via title+quote-prefix-signature
+- [x] DocumentAnalysisWindow med summary-bar, finding-cards, severity-pills,
+  category-icons, citat-blok med textSelection enabled
+- [x] StatusView footer-knap: åbner document-vinduet
+- [x] Empty/error/no-findings/analyzing states
 
-**Acceptance:** Drop en kontrakt-PDF på Saga → modal med 5 flagede klausuler
-+ deres lokation i dokumentet.
+**Acceptance:** ✅ Vælg PDF/DOCX → modal med fund grupperet efter kategori,
+severity-pill, kort forklaring, ordret citat. Analyse tager 30-90s for typisk
+kontrakt afhængig af LM Studio-model.
 
 ## M6 — Custom modes
 Bruger-defineret modes via Settings.
