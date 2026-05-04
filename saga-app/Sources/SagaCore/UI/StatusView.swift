@@ -75,7 +75,8 @@ public struct StatusView: View {
         switch controller.state {
         case .idle:
             if let err = controller.lastError { return err }
-            return controller.health.asr.isHappy ? "Klar" : "Indlæser ASR-model"
+            if !controller.health.asr.isHappy { return "Indlæser ASR-model" }
+            return controller.stenografMode ? "Klar · Stenograf-mode" : "Klar"
         case .recording: return "Lytter…"
         case .transcribing: return "Transkriberer…"
         case .routing: return "Tænker…"

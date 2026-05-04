@@ -184,6 +184,19 @@ PDF/DOCX-analyse for binding-perioder, fortrydelsesfrister, automatiske fornyels
 severity-pill, kort forklaring, ordret citat. Analyse tager 30-90s for typisk
 kontrakt afhængig af LM Studio-model.
 
+## M6.0 — Stenograf-mode (done · 2026-05-04)
+Toggle der skipper ALT routing/LLM/modes — ren dictation til cursor.
+
+- [x] @Published stenografMode i SagaController, persisteret i UserDefaults
+- [x] handleHoldEnd skipper modes.route() helt når stenograf er ON
+- [x] Settings → Generelt → "Mode"-sektion øverst med toggle + forklaring
+- [x] StatusView viser "Klar · Stenograf-mode" når aktiveret
+- [x] Loggning af mode-skift
+
+**Acceptance:** ✅ Med stenograf-mode ON sker der INGEN LM Studio-kald,
+selv hvis brugeren siger "oversæt til engelsk: hej". Kun ren Canary →
+cursor.
+
 ## M6 — Custom modes
 Bruger-defineret modes via Settings.
 
@@ -195,16 +208,18 @@ Bruger-defineret modes via Settings.
 **Acceptance:** Bruger opretter "LinkedIn-mode" med specialized system-prompt;
 "linkedin: vi annoncerer X" → polished LinkedIn-post indsat.
 
-## M7 — Integrations
-External webhooks + native macOS apps.
+## M7 — Integrations (deferred / skipped)
 
-- [ ] Webhook-trigger via Make/n8n/zapier (POST til user-defined URL)
-- [ ] Apple Kalender via EventKit (opret events fra dictation)
-- [ ] Google Sheets via OAuth + Sheets API (append rows)
-- [ ] Saga URL scheme (`saga://`) for Shortcuts-integration
+External webhooks + native macOS apps. Skipped af bruger 2026-05-04 —
+Saga's core dictation + modes + reminders + vision + document-analysis er
+det meningsfulde scope. Calendar/Sheets/Make-integrationer kan tilføjes
+senere som separate add-on-modes ved behov.
 
-**Acceptance:** Sig "tilføj til kalender: tandlæge tirsdag kl 10" → event
-oprettet i default kalender.
+- [skip] Webhook-trigger via Make/n8n/zapier
+- [skip] Apple Kalender via EventKit (kan implementeres som mode der bruger
+        Reminder-engine-style LLM-parsing → EventKit i stedet for UNUNotif)
+- [skip] Google Sheets via OAuth + Sheets API
+- [skip] Saga URL scheme (`saga://`) for Shortcuts-integration
 
 ## M8 — Distribution
 Code-sign, notarize, .dmg, auto-update.

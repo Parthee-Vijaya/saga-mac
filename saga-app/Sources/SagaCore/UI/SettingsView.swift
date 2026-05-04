@@ -131,6 +131,22 @@ struct GeneralSettingsTab: View {
 
     var body: some View {
         Form {
+            Section("Mode") {
+                Toggle(isOn: Binding(
+                    get: { controller.stenografMode },
+                    set: { controller.stenografMode = $0 }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Stenograf-mode")
+                            .font(.system(size: 13, weight: .medium))
+                        Text("Kun ren dictation. Springer LM Studio, modes, reminders, vision og document-analysis over. Brug hvis du vil have minimum latency og ingen AI-routing.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+            }
             Section("Push-to-talk-tast") {
                 Picker("Hotkey", selection: $hotkeyRaw) {
                     ForEach(Hotkey.allCases, id: \.rawValue) { key in
