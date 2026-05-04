@@ -55,7 +55,7 @@ public struct StatusView: View {
 
     private var stateIcon: String {
         switch controller.state {
-        case .idle: return controller.health.sidecar.isHappy ? "checkmark.circle.fill" : "exclamationmark.circle"
+        case .idle: return controller.health.asr.isHappy ? "checkmark.circle.fill" : "exclamationmark.circle"
         case .recording: return "mic.fill"
         case .transcribing: return "waveform"
         case .routing: return "sparkles"
@@ -64,7 +64,7 @@ public struct StatusView: View {
 
     private var stateColor: Color {
         switch controller.state {
-        case .idle: return controller.health.sidecar.isHappy ? .green : .orange
+        case .idle: return controller.health.asr.isHappy ? .green : .orange
         case .recording: return .red
         case .transcribing: return .accentColor
         case .routing: return .purple
@@ -75,7 +75,7 @@ public struct StatusView: View {
         switch controller.state {
         case .idle:
             if let err = controller.lastError { return err }
-            return controller.health.sidecar.isHappy ? "Klar" : "Venter på sidecar"
+            return controller.health.asr.isHappy ? "Klar" : "Indlæser ASR-model"
         case .recording: return "Lytter…"
         case .transcribing: return "Transkriberer…"
         case .routing: return "Tænker…"
@@ -87,10 +87,10 @@ public struct StatusView: View {
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HealthRow(
-                title: "Hviske (ASR)",
-                detail: controller.health.sidecar.label,
-                ok: controller.health.sidecar.isHappy,
-                action: ("Genstart", { controller.restartSidecar() })
+                title: "Canary (ASR)",
+                detail: "\(controller.asr.modelLabel) · \(controller.health.asr.label)",
+                ok: controller.health.asr.isHappy,
+                action: ("Reload", { controller.reloadASR() })
             )
             HealthRow(
                 title: "LM Studio (LLM)",
@@ -202,45 +202,70 @@ struct HealthRow: View {
 }
 
 struct PermissionInlineRow: View {
-    @State private var hasMic = false
+    @EnvironmentObject private var controller: SagaController
+    @State private var micStatus: AVAuthorizationStatus = .notDetermined
     @State private var hasAX = false
+
+    private var hasMic: Bool { micStatus == .authorized }
+    private var allOk: Bool { hasMic && hasAX }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill((hasMic && hasAX) ? Color.green : Color.orange)
+                .fill(allOk ? Color.green : Color.orange)
                 .frame(width: 8, height: 8)
                 .padding(.top, 5)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Permissions")
                     .font(.system(size: 12, weight: .medium))
-                Text("Mikrofon: \(hasMic ? "✓" : "—")  ·  Accessibility: \(hasAX ? "✓" : "—")")
+                Text("Mikrofon: \(micLabel)  ·  Accessibility: \(hasAX ? "✓" : "—")")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
             Spacer()
-            if !(hasMic && hasAX) {
-                Button("Åbn") {
+            if !allOk {
+                Menu("Fix") {
+                    if micStatus == .notDetermined {
+                        Button("Spørg om mikrofon-adgang") {
+                            controller.requestMicrophonePermissionIfNeeded()
+                        }
+                    }
+                    if !hasMic {
+                        Button("Åbn Mikrofon-indstillinger") {
+                            controller.openMicrophoneSettings()
+                        }
+                    }
                     if !hasAX {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                            NSWorkspace.shared.open(url)
+                        Button("Åbn Accessibility-indstillinger") {
+                            controller.openAccessibilitySettings()
                         }
                     }
                 }
-                .buttonStyle(.borderless)
+                .menuStyle(.borderlessButton)
                 .font(.system(size: 11))
+                .fixedSize()
             }
         }
         .task {
             refresh()
         }
-        .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
             refresh()
         }
     }
 
+    private var micLabel: String {
+        switch micStatus {
+        case .authorized: return "✓"
+        case .denied: return "nægtet"
+        case .restricted: return "begrænset"
+        case .notDetermined: return "ikke spurgt endnu"
+        @unknown default: return "—"
+        }
+    }
+
     private func refresh() {
-        hasMic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         hasAX = AXIsProcessTrusted()
     }
 }

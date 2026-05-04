@@ -1,9 +1,15 @@
 import AppKit
+import AVFoundation
 import Combine
 import Foundation
 import OSLog
 
 /// Top-level orkestrator. Holder alle moduler og koordinerer hotkey → audio → transcribe → inject.
+///
+/// ASR-backend er CanaryKit (NVIDIA Canary-1b-v2 → CoreML, Apple Silicon native).
+/// Hviske var ASR i M0–M0.C men producerede multilingual junk på MPS — pivoteret til
+/// canary-coreml efter user's tidligere arbejde på det projekt. Hviske-coreml planlægges
+/// som drop-in-erstatning når den er konverteret (~10 dages sideprojekt).
 @MainActor
 public final class SagaController: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "controller")
@@ -12,8 +18,7 @@ public final class SagaController: ObservableObject {
     public let hotkeys: HotkeyManager
     public let audio: AudioCapture
     public let cursor: CursorInjector
-    public let sidecar: SidecarLauncher
-    public let hviske: HviskeBridge
+    public let asr: CanaryASRBridge
     public let lmStudio: LMStudioBridge
     public let modes: ModeRouter
     public let health: HealthMonitor
@@ -28,8 +33,7 @@ public final class SagaController: ObservableObject {
         self.hotkeys = HotkeyManager()
         self.audio = AudioCapture()
         self.cursor = CursorInjector()
-        self.sidecar = SidecarLauncher()
-        self.hviske = HviskeBridge()
+        self.asr = CanaryASRBridge()
         self.lmStudio = LMStudioBridge()
         self.modes = ModeRouter()
         self.health = HealthMonitor()
@@ -38,32 +42,27 @@ public final class SagaController: ObservableObject {
 
     public var menuBarIconName: String {
         switch state {
-        case .idle: return health.sidecar.isHappy ? "waveform.circle" : "waveform.circle.fill"
+        case .idle: return health.asr.isHappy ? "waveform.circle" : "waveform.circle.fill"
         case .recording: return "mic.fill"
         case .transcribing: return "waveform"
         case .routing: return "sparkles"
         }
     }
 
-    /// Kaldes en gang fra MenuBarExtra-task. Idempotent.
     public func bootIfNeeded() async {
         guard !booted else { return }
         booted = true
         log.info("Saga booter")
 
         hud.attach(controller: self)
-        health.attach(hviske: hviske)
+        health.attach(asr: asr)
         health.start()
 
-        // Start sidecar i baggrunden
-        Task { [sidecar, hviske] in
-            do {
-                let port = try await sidecar.startIfNeeded()
-                hviske.update(port: port)
-            } catch {
-                self.log.error("Kunne ikke starte sidecar: \(error.localizedDescription)")
-                self.lastError = "Sidecar startede ikke: \(error.localizedDescription)"
-            }
+        requestMicrophonePermissionIfNeeded()
+
+        // Start CoreML-load i baggrunden. FP16 indtil int4-kvantisering er færdig.
+        Task { [asr] in
+            await asr.load(useInt4: false)
         }
 
         // Aktivér hotkey-listening
@@ -77,18 +76,46 @@ public final class SagaController: ObservableObject {
         hotkeys.stopListening()
         audio.stop()
         health.stop()
-        await sidecar.shutdown()
     }
 
-    public func restartSidecar() {
-        Task { [sidecar, hviske] in
-            await sidecar.shutdown()
-            do {
-                let port = try await sidecar.startIfNeeded()
-                hviske.update(port: port)
-            } catch {
-                self.lastError = "Genstart fejlede: \(error.localizedDescription)"
+    public func reloadASR() {
+        Task { [asr] in
+            await asr.load(useInt4: false)
+        }
+    }
+
+    public func requestMicrophonePermissionIfNeeded() {
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        switch status {
+        case .notDetermined:
+            log.info("Beder om mikrofon-permission")
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                Task { @MainActor in
+                    self?.log.info("Mikrofon-permission granted: \(granted)")
+                    if !granted {
+                        self?.lastError = "Mikrofon-adgang blev nægtet. Aktivér i System Settings → Privacy → Microphone."
+                    }
+                }
             }
+        case .denied, .restricted:
+            log.warning("Mikrofon-permission er nægtet")
+            lastError = "Mikrofon-adgang mangler. Aktivér i System Settings → Privacy → Microphone."
+        case .authorized:
+            log.info("Mikrofon-permission OK")
+        @unknown default:
+            break
+        }
+    }
+
+    public func openMicrophoneSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    public func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
         }
     }
 
@@ -96,6 +123,11 @@ public final class SagaController: ObservableObject {
 
     private func handleHoldStart() {
         guard state == .idle else { return }
+        guard asr.isReady else {
+            log.warning("ASR ikke klar — ignorer hotkey")
+            lastError = "ASR-modellen er stadig ved at indlæse. Vent på \"Klar\"-status."
+            return
+        }
         lastError = nil
         state = .recording
         hud.show()
@@ -117,7 +149,7 @@ public final class SagaController: ObservableObject {
 
         Task { @MainActor in
             do {
-                let transcript = try await hviske.transcribe(pcm: pcm)
+                let transcript = try await asr.transcribe(pcm: pcm, language: "da")
                 state = .routing
                 hud.update(state: .routing)
 
@@ -164,4 +196,18 @@ public enum SagaState: Equatable, Sendable {
     case recording
     case transcribing
     case routing
+}
+
+public struct TranscribeResult: Sendable {
+    public let text: String
+    public let durationMs: Int
+    public let inferenceMs: Int
+    public let rtf: Double
+
+    public init(text: String, durationMs: Int, inferenceMs: Int, rtf: Double) {
+        self.text = text
+        self.durationMs = durationMs
+        self.inferenceMs = inferenceMs
+        self.rtf = rtf
+    }
 }

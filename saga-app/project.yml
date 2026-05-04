@@ -2,10 +2,14 @@ name: SagaApp
 options:
   bundleIdPrefix: dk.parthee.saga
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "15.0"  # CanaryKit kræver macOS 15+
   developmentLanguage: da
   generateEmptyDirectories: true
   groupSortPosition: top
+
+packages:
+  CanaryKit:
+    path: ../../canary-coreml/swift
 
 settings:
   base:
@@ -21,14 +25,19 @@ targets:
   Saga:
     type: application
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "15.0"
     sources:
       - path: Sources/SagaApp
       - path: Sources/SagaCore
+    dependencies:
+      - package: CanaryKit
+        product: CanaryKit
     resources:
       - path: Resources
         excludes:
           - "Saga.entitlements"
+      - path: ../../canary-coreml/models/mlpackage
+        optional: true
     info:
       path: Resources/Info.plist
       properties:
@@ -61,7 +70,7 @@ targets:
   SagaCoreTests:
     type: bundle.unit-test
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "15.0"
     sources:
       - path: Tests/SagaCoreTests
     dependencies:

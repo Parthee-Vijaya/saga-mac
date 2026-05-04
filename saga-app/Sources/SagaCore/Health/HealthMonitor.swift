@@ -1,34 +1,33 @@
 import Foundation
 import OSLog
 
-/// Pinger sidecar /health og LM Studio /v1/models periodisk så menu-UI'en
-/// kan vise live-status. Kører på MainActor — tasks der kalder netværk
-/// dispatcher selv asynkront via URLSession.
+/// Polls LM Studio /v1/models periodisk og spejler ASR-bridge state.
+/// CanaryASR har en intern @Published-state vi spejler ind så menu-UI kan binde.
 @MainActor
 public final class HealthMonitor: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "health")
 
-    @Published public private(set) var sidecar: SidecarHealth = .unknown
+    @Published public private(set) var asr: ASRState = .uninitialized
     @Published public private(set) var lmStudio: LMStudioHealth = .unknown
 
-    private var sidecarTask: Task<Void, Never>?
+    private var asrTask: Task<Void, Never>?
     private var lmStudioTask: Task<Void, Never>?
-    private weak var hviske: HviskeBridge?
+    private weak var asrBridge: CanaryASRBridge?
 
     public init() {}
 
-    public func attach(hviske: HviskeBridge) {
-        self.hviske = hviske
+    public func attach(asr: CanaryASRBridge) {
+        self.asrBridge = asr
     }
 
     public func start() {
-        sidecarTask?.cancel()
+        asrTask?.cancel()
         lmStudioTask?.cancel()
 
-        sidecarTask = Task { [weak self] in
+        asrTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.pollSidecar()
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                await self?.pollASR()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
 
@@ -41,38 +40,21 @@ public final class HealthMonitor: ObservableObject {
     }
 
     public func stop() {
-        sidecarTask?.cancel()
+        asrTask?.cancel()
         lmStudioTask?.cancel()
-        sidecarTask = nil
+        asrTask = nil
         lmStudioTask = nil
     }
 
-    private func pollSidecar() async {
-        guard let port = currentSidecarPort() else {
-            sidecar = .down(reason: "Ikke spawned endnu")
-            return
-        }
-
-        var req = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/health")!)
-        req.timeoutInterval = 2.0
-
-        do {
-            let (data, resp) = try await URLSession.shared.data(for: req)
-            guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                sidecar = .down(reason: "HTTP \((resp as? HTTPURLResponse)?.statusCode ?? -1)")
-                return
-            }
-            let info = try JSONDecoder().decode(SidecarHealthPayload.self, from: data)
-            sidecar = info.status == "ready"
-                ? .ready(device: info.device, modelId: info.modelId, version: info.version)
-                : .loading(device: info.device, modelId: info.modelId)
-        } catch {
-            sidecar = .down(reason: error.localizedDescription)
+    private func pollASR() async {
+        guard let bridge = asrBridge else { return }
+        let newState = bridge.state
+        if newState != asr {
+            asr = newState
         }
     }
 
     private func pollLMStudio() async {
-        // Læs config fra UserDefaults
         let baseURLString = UserDefaults.standard.string(forKey: "lmStudioBaseURL") ?? "http://localhost:1234/v1"
         guard let baseURL = URL(string: baseURLString) else {
             lmStudio = .misconfigured
@@ -88,7 +70,6 @@ public final class HealthMonitor: ObservableObject {
                 lmStudio = .down
                 return
             }
-            // Parse model-list — vi tager bare første model som "loaded"
             if let payload = try? JSONDecoder().decode(LMStudioModels.self, from: data),
                let first = payload.data.first {
                 lmStudio = .ready(model: first.id)
@@ -99,28 +80,6 @@ public final class HealthMonitor: ObservableObject {
             lmStudio = .down
         }
     }
-
-    private func currentSidecarPort() -> UInt16? {
-        hviske?.currentPort
-    }
-}
-
-public enum SidecarHealth: Equatable, Sendable {
-    case unknown
-    case loading(device: String, modelId: String)
-    case ready(device: String, modelId: String, version: String)
-    case down(reason: String)
-
-    public var label: String {
-        switch self {
-        case .unknown: return "Spawner…"
-        case .loading(let device, _): return "Indlæser model på \(device)…"
-        case .ready(let device, _, _): return "Klar (\(device))"
-        case .down(let reason): return "Nede — \(reason)"
-        }
-    }
-
-    public var isHappy: Bool { if case .ready = self { return true } else { return false } }
 }
 
 public enum LMStudioHealth: Equatable, Sendable {
@@ -139,18 +98,6 @@ public enum LMStudioHealth: Equatable, Sendable {
     }
 
     public var isHappy: Bool { if case .ready = self { return true } else { return false } }
-}
-
-private struct SidecarHealthPayload: Codable {
-    let status: String
-    let device: String
-    let modelId: String
-    let version: String
-
-    enum CodingKeys: String, CodingKey {
-        case status, device, version
-        case modelId = "model_id"
-    }
 }
 
 private struct LMStudioModels: Codable {
