@@ -23,6 +23,7 @@ public final class SagaController: ObservableObject {
     public let modes: ModeRouter
     public let health: HealthMonitor
     public let history: HistoryStore
+    public let reminders: ReminderEngine
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -41,6 +42,7 @@ public final class SagaController: ObservableObject {
         self.modes = ModeRouter()
         self.health = HealthMonitor()
         self.history = HistoryStore()
+        self.reminders = ReminderEngine()
     }
 
     public var menuBarIconName: String {

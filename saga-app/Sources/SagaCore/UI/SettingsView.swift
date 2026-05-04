@@ -13,10 +13,113 @@ public struct SettingsView: View {
                 .tabItem { Label("Generelt", systemImage: "gearshape") }
             ModesSettingsTab()
                 .tabItem { Label("Modes", systemImage: "wand.and.stars") }
+            RemindersSettingsTab()
+                .tabItem { Label("Reminders", systemImage: "bell") }
             AboutTab()
                 .tabItem { Label("Om", systemImage: "info.circle") }
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 540, height: 460)
+    }
+}
+
+struct RemindersSettingsTab: View {
+    @EnvironmentObject private var controller: SagaController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Reminders")
+                    .font(.headline)
+                Text("Sig 'mind mig om at ringe til Lars i morgen kl 14' → Saga parser tidspunkt og titel via LM Studio og skemalægger en macOS-notifikation.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            HStack {
+                Image(systemName: controller.reminders.permissionGranted ? "checkmark.circle.fill" : "exclamationmark.circle")
+                    .foregroundColor(controller.reminders.permissionGranted ? .green : .orange)
+                Text(controller.reminders.permissionGranted ? "Notifikations-adgang: tilladt" : "Notifikations-adgang mangler")
+                    .font(.system(size: 12))
+                Spacer()
+                if !controller.reminders.permissionGranted {
+                    Button("Spørg") {
+                        Task { _ = await controller.reminders.requestPermissionIfNeeded() }
+                    }
+                    .controlSize(.small)
+                }
+            }
+            .padding(8)
+            .background(Color.gray.opacity(0.06))
+            .cornerRadius(6)
+
+            HStack {
+                Text("Skemalagte (\(controller.reminders.scheduled.count))")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                if !controller.reminders.scheduled.isEmpty {
+                    Button("Ryd alt") {
+                        controller.reminders.clearAll()
+                    }
+                    .controlSize(.small)
+                }
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    if controller.reminders.scheduled.isEmpty {
+                        Text("Ingen kommende reminders.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 16)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    } else {
+                        ForEach(controller.reminders.scheduled) { reminder in
+                            ReminderRow(reminder: reminder)
+                                .environmentObject(controller)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+struct ReminderRow: View {
+    @EnvironmentObject private var controller: SagaController
+    let reminder: ScheduledReminder
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: reminder.hasFired ? "bell.slash" : "bell.fill")
+                .foregroundColor(reminder.hasFired ? .secondary : Color(red: 0.20, green: 0.55, blue: 0.95))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(reminder.title)
+                    .font(.system(size: 13, weight: .medium))
+                Text(reminder.formattedFireDate)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if !reminder.body.isEmpty {
+                    Text(reminder.body)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            Spacer()
+            Button {
+                controller.reminders.cancel(id: reminder.id)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
+        .background(Color.gray.opacity(0.04))
+        .cornerRadius(6)
     }
 }
 

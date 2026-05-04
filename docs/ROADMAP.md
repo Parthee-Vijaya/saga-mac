@@ -114,18 +114,32 @@ LLM-baserede modes — translate, format, summarize, vibe-code, linkedin.
 og hvis LM Studio er nede får brugeren rå-transkription i stedet for fejl.
 
 
-## M3 — Hey Saga + reminders
-Wake-word + voice-aktiverede reminders.
+## M3 — Voice-reminders (done · 2026-05-04)
+Voice-aktiverede reminders via mode-trigger. Wake-word "Hey Saga" er
+udskudt til M3.B (kræver Snowboy/Porcupine eller continuous SFSpeechRecognizer
+— udenfor scope for personlig brug).
 
-- [ ] Wake-word: enten Snowboy/PocketSphinx eller en let custom Hviske-loop med
-      VAD (research nødvendig — Hviske er for tung til at køre konstant)
-- [ ] Alternative: bruger trykker Fn-Fn (double-tap) for "Hey Saga"-mode
-- [ ] `ReminderEngine` — UNUserNotificationCenter scheduling
-- [ ] `ReminderMode` — LLM ekstraherer { trigger, title } fra dansk fri-tekst
-- [ ] Voice-confirm via `AVSpeechSynthesizer` (dansk stemme)
+- [x] `ReminderEngine` ObservableObject — UNUserNotificationCenter scheduling
+  + persistens til UserDefaults
+- [x] Permission-flow: requestAuthorization med graceful denied-handling
+- [x] `ScheduledReminder` model med formattedFireDate (dansk locale, "i dag/i morgen/EEEE")
+- [x] `ReminderMode` med trigger-frase ("mind mig om", "remind me to", "påmindelse:")
+  som matchet før ModeRouter's generiske matching
+- [x] LLM-prompt parser dansk fri-tekst til `{trigger_iso8601, title, body}` JSON
+- [x] Markdown-fence-stripping + fallback-formatter til ikke-ISO timestamps
+- [x] Confirmation-tekst injected ved cursor: "✓ Reminder: Ring til Lars i morgen kl. 14:00"
+- [x] Settings → Reminders-tab: notification-permission-status + liste over upcoming
+  med cancel-knap + "Ryd alt"
+- [x] HUD viser "Mode: Reminder" under routing
 
-**Acceptance:** Sig "Hey Saga, mind mig om at ringe til Lars i morgen kl 14"
-→ notifikation kommer kl 14 dagen efter.
+### M3.B — Wake-word (deferred)
+Snowboy er deprecated, Porcupine kræver kommerciel licens. Continuous
+SFSpeechRecognizer er cloud-afhængig medmindre `requiresOnDeviceRecognition=true`
+hvilket har dårlig kvalitet. Realistisk indsats: ~3-5 dage. Foreløbig: brug
+Højre Option + sig "mind mig om...".
+
+**Acceptance:** ✅ Sig "mind mig om at ringe til Lars i morgen kl 14"
+→ notifikation kommer i morgen kl 14 + bekræftelse skrives ved cursor.
 
 ## M4 — Vision
 Skærm-analyse via multi-modal LLM.
