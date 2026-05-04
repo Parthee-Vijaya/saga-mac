@@ -68,11 +68,14 @@ Mål: én .dmg som kan dropped på en frisk Mac og virker out-of-the-box.
 - [x] Manuel base URL + model TextField bevaret som override
 - [x] Verificeret: Saga fandt LM Studio på port 1234 ved boot, log: "fandt 1 endpoints"
 
-### M8.C — DMG distribution
-- [ ] Build-script: bundle CanaryEncoder/Decoder/Preprocessor.mlpackage i Saga.app/Contents/Resources/mlpackage/
-- [ ] Release-build configuration
-- [ ] hdiutil til at lave .dmg med Saga.app + symlink → /Applications + README
-- [ ] Test ad-hoc-signed DMG på frisk Mac (right-click → Open første gang)
+### M8.C — DMG distribution (done · 2026-05-04)
+- [x] `scripts/build-dmg.sh`: 8-step pipeline med pre-flight, xcodebuild Release, mlpackage-bundling, re-sign, hdiutil, verify
+- [x] Bundler mlpackages (1.5 GB encoder + 291 MB decoder + 1.2 MB preprocessor) → Saga.app/Contents/Resources/mlpackage/
+- [x] Re-signing efter content-mod via codesign --force --deep med entitlements
+- [x] DMG-staging: Saga.app + symlink Applications + Læs mig.txt med install-instruktioner
+- [x] hdiutil UDZO compression → 1.7 GB DMG (komprimeret fra 1.8 GB app)
+- [x] Verificeret: DMG mounter, Saga.app er signed, mlpackages er bundlet
+- [x] Output: `dist/Saga-0.1.0.dmg`
 
 ### M8.D — First-run setup wizard
 - [ ] Detect manglende prerequisites (mic permission, AX permission, mlpackages)

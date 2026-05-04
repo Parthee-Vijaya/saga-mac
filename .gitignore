@@ -37,6 +37,7 @@ saga-sidecar/.cache/
 # Build artifacts
 build/
 dist/
+saga-app/dist/
 *.dmg
 *.app/
 *.zip
