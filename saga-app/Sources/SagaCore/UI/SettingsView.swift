@@ -11,6 +11,8 @@ public struct SettingsView: View {
         TabView {
             GeneralSettingsTab()
                 .tabItem { Label("Generelt", systemImage: "gearshape") }
+            VoiceSettingsTab()
+                .tabItem { Label("Stemme", systemImage: "mic") }
             ModesSettingsTab()
                 .tabItem { Label("Modes", systemImage: "wand.and.stars") }
             RemindersSettingsTab()
@@ -18,198 +20,148 @@ public struct SettingsView: View {
             AboutTab()
                 .tabItem { Label("Om", systemImage: "info.circle") }
         }
-        .frame(width: 540, height: 460)
+        .frame(width: 640, height: 580)
     }
 }
 
-struct RemindersSettingsTab: View {
-    @EnvironmentObject private var controller: SagaController
+// MARK: - Reusable building blocks
+
+/// En "card" der grupperer relateret indhold med titel + footer-hint.
+struct SettingsCard<Content: View>: View {
+    let title: String
+    let footer: String?
+    @ViewBuilder let content: () -> Content
+
+    init(_ title: String, footer: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.footer = footer
+        self.content = content
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Reminders")
-                    .font(.headline)
-                Text("Sig 'mind mig om at ringe til Lars i morgen kl 14' → Saga parser tidspunkt og titel via LM Studio og skemalægger en macOS-notifikation.")
-                    .font(.caption)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 4)
+
+            VStack(alignment: .leading, spacing: 0) {
+                content()
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.windowBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
+                    )
+            )
+
+            if let footer {
+                Text(footer)
+                    .font(.system(size: 11))
                     .foregroundColor(.secondary)
-            }
-
-            HStack {
-                Image(systemName: controller.reminders.permissionGranted ? "checkmark.circle.fill" : "exclamationmark.circle")
-                    .foregroundColor(controller.reminders.permissionGranted ? .green : .orange)
-                Text(controller.reminders.permissionGranted ? "Notifikations-adgang: tilladt" : "Notifikations-adgang mangler")
-                    .font(.system(size: 12))
-                Spacer()
-                if !controller.reminders.permissionGranted {
-                    Button("Spørg") {
-                        Task { _ = await controller.reminders.requestPermissionIfNeeded() }
-                    }
-                    .controlSize(.small)
-                }
-            }
-            .padding(8)
-            .background(Color.gray.opacity(0.06))
-            .cornerRadius(6)
-
-            HStack {
-                Text("Skemalagte (\(controller.reminders.scheduled.count))")
-                    .font(.system(size: 12, weight: .semibold))
-                Spacer()
-                if !controller.reminders.scheduled.isEmpty {
-                    Button("Ryd alt") {
-                        controller.reminders.clearAll()
-                    }
-                    .controlSize(.small)
-                }
-            }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 6) {
-                    if controller.reminders.scheduled.isEmpty {
-                        Text("Ingen kommende reminders.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.vertical, 16)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    } else {
-                        ForEach(controller.reminders.scheduled) { reminder in
-                            ReminderRow(reminder: reminder)
-                                .environmentObject(controller)
-                        }
-                    }
-                }
+                    .padding(.horizontal, 4)
+                    .padding(.top, 2)
             }
         }
-        .padding()
     }
 }
 
-struct ReminderRow: View {
-    @EnvironmentObject private var controller: SagaController
-    let reminder: ScheduledReminder
+struct SettingsRow<Trailing: View>: View {
+    let title: String
+    let subtitle: String?
+    @ViewBuilder let trailing: () -> Trailing
+
+    init(_ title: String, subtitle: String? = nil, @ViewBuilder trailing: @escaping () -> Trailing) {
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: reminder.hasFired ? "bell.slash" : "bell.fill")
-                .foregroundColor(reminder.hasFired ? .secondary : Color(red: 0.20, green: 0.55, blue: 0.95))
-                .padding(.top, 2)
-
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(reminder.title)
-                    .font(.system(size: 13, weight: .medium))
-                Text(reminder.formattedFireDate)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                if !reminder.body.isEmpty {
-                    Text(reminder.body)
-                        .font(.caption)
+                Text(title).font(.system(size: 13, weight: .medium))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer()
-            Button {
-                controller.reminders.cancel(id: reminder.id)
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary.opacity(0.6))
-            }
-            .buttonStyle(.plain)
+            Spacer(minLength: 12)
+            trailing()
         }
-        .padding(8)
-        .background(Color.gray.opacity(0.04))
-        .cornerRadius(6)
+        .padding(.vertical, 6)
     }
 }
+
+// MARK: - Generelt
 
 struct GeneralSettingsTab: View {
     @EnvironmentObject private var controller: SagaController
     @AppStorage("hotkey") private var hotkeyRaw: String = Hotkey.rightOption.rawValue
-    @AppStorage("lmStudioBaseURL") private var lmStudioBaseURL: String = "http://localhost:1234/v1"
-    @AppStorage("lmStudioModel") private var lmStudioModel: String = "gemma-4-26b-a4b"
 
     var body: some View {
-        Form {
-            Section("Mode") {
-                Toggle(isOn: Binding(
-                    get: { controller.stenografMode },
-                    set: { controller.stenografMode = $0 }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Stenograf-mode")
-                            .font(.system(size: 13, weight: .medium))
-                        Text("Kun ren dictation. Springer LM Studio, modes, reminders, vision og document-analysis over. Brug hvis du vil have minimum latency og ingen AI-routing.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsCard("Mode") {
+                    SettingsRow(
+                        "Stenograf-mode",
+                        subtitle: "Ren dictation. Springer alt LLM-routing over (modes, reminders, vision, document-analyse)."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.stenografMode },
+                            set: { controller.stenografMode = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
                     }
                 }
-                .toggleStyle(.switch)
-            }
-            Section("Wake-word") {
-                Toggle(isOn: Binding(
-                    get: { controller.wakeWordEnabled },
-                    set: { controller.wakeWordEnabled = $0 }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Aktivér 'Hej Saga' wake-word")
-                            .font(.system(size: 13, weight: .medium))
-                        Text("Saga lytter altid på baggrunden via Apple's on-device speech recognition. Når du siger 'Hej Saga' starter optagelse automatisk i 6 sek. Default OFF — wake-word kræver konstant mic-adgang.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+
+                SettingsCard("Push-to-talk") {
+                    SettingsRow(
+                        "Hotkey",
+                        subtitle: hotkeyHelp
+                    ) {
+                        Picker("", selection: $hotkeyRaw) {
+                            ForEach(Hotkey.allCases, id: \.rawValue) { key in
+                                Text(key.displayName).tag(key.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 180)
                     }
                 }
-                .toggleStyle(.switch)
-                if controller.wakeWord.isListening {
-                    Text("● Lytter…")
-                        .font(.caption.monospaced())
-                        .foregroundColor(.green)
-                }
-                if let err = controller.wakeWord.lastError {
-                    Text(err)
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
-            }
-            Section("Push-to-talk-tast") {
-                Picker("Hotkey", selection: $hotkeyRaw) {
-                    ForEach(Hotkey.allCases, id: \.rawValue) { key in
-                        Text(key.displayName).tag(key.rawValue)
-                    }
-                }
-                .pickerStyle(.menu)
-                Text(hotkeyHelp)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Section("LM Studio") {
-                LMStudioDiscoverySection(
-                    baseURL: $lmStudioBaseURL,
-                    model: $lmStudioModel
-                )
-                .environmentObject(controller)
-            }
-            Section("Permissions") {
-                PermissionStatusRow(
-                    title: "Mikrofon",
-                    status: AVCaptureDevice.authorizationStatus(for: .audio).description
-                )
-                PermissionStatusRow(
-                    title: "Accessibility",
-                    status: AXIsProcessTrusted() ? "Tilladt" : "Mangler"
-                )
-                Button("Åbn Privacy & Security") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                        NSWorkspace.shared.open(url)
+
+                SettingsCard("Permissions") {
+                    PermissionsRow(
+                        title: "Mikrofon",
+                        granted: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+                    )
+                    Divider().padding(.vertical, 4)
+                    PermissionsRow(
+                        title: "Accessibility",
+                        granted: AXIsProcessTrusted()
+                    )
+                    Divider().padding(.vertical, 4)
+                    HStack {
+                        Spacer()
+                        Button("Åbn Privacy & Security…") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
                     }
                 }
             }
+            .padding(20)
         }
-        .padding()
         .onChange(of: hotkeyRaw) { _, _ in
-            // Reload event-tap så ny hotkey aktiveres uden genstart
             controller.hotkeys.stopListening()
             controller.hotkeys.startListening()
         }
@@ -219,11 +171,89 @@ struct GeneralSettingsTab: View {
         guard let key = Hotkey(rawValue: hotkeyRaw) else { return "" }
         switch key {
         case .fn:
-            return "Apple's globe-tast. Virker IKKE på Logitech/3rd-party keyboards — vælg Højre Option i stedet."
+            return "Apple's globe-tast. Virker IKKE på Logitech/3rd-party keyboards."
         case .rightOption, .leftOption:
-            return "Universal — virker på alle keyboards inkl. Logitech MX, Magic Keyboard, USB-keyboards."
+            return "Universal — virker på alle keyboards inkl. Logitech MX, Magic Keyboard, USB."
         case .rightCommand, .rightControl:
-            return "Sjældent brugt til normalt arbejde. Sikker hvis du har Option-tasten optaget af noget andet."
+            return "Sjældent brugt til normalt arbejde. Sikker hvis ⌥ er optaget."
+        }
+    }
+}
+
+struct PermissionsRow: View {
+    let title: String
+    let granted: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle")
+                .foregroundColor(granted ? .green : .orange)
+            Text(title).font(.system(size: 13))
+            Spacer()
+            Text(granted ? "Tilladt" : "Mangler")
+                .font(.caption)
+                .foregroundColor(granted ? .green : .orange)
+        }
+    }
+}
+
+// MARK: - Stemme (LM Studio + Wake-word + ASR-info)
+
+struct VoiceSettingsTab: View {
+    @EnvironmentObject private var controller: SagaController
+    @AppStorage("lmStudioBaseURL") private var lmStudioBaseURL: String = "http://localhost:1234/v1"
+    @AppStorage("lmStudioModel") private var lmStudioModel: String = "gemma-4-26b-a4b"
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsCard(
+                    "Wake-word",
+                    footer: "Saga lytter altid via Apples on-device speech recognition. Kræver permission. Default OFF."
+                ) {
+                    SettingsRow(
+                        "Aktivér 'Hej Saga'",
+                        subtitle: "Når du siger 'Hej Saga' starter optagelse i 6 sek automatisk."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.wakeWordEnabled },
+                            set: { controller.wakeWordEnabled = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+                    if controller.wakeWord.isListening {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                            Text("Lytter")
+                                .font(.caption.monospaced())
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding(.top, 4)
+                    }
+                    if let err = controller.wakeWord.lastError {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .padding(.top, 4)
+                    }
+                }
+
+                SettingsCard(
+                    "LM Studio",
+                    footer: "Bruges til mode-routing (oversæt, opsummer osv.). Pure dictation virker uden."
+                ) {
+                    LMStudioDiscoverySection(
+                        baseURL: $lmStudioBaseURL,
+                        model: $lmStudioModel
+                    )
+                    .environmentObject(controller)
+                }
+            }
+            .padding(20)
         }
     }
 }
@@ -234,7 +264,7 @@ struct LMStudioDiscoverySection: View {
     @Binding var model: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Button {
                     Task { await controller.discoverLMStudio() }
@@ -260,52 +290,67 @@ struct LMStudioDiscoverySection: View {
             }
 
             if !controller.discoveredEndpoints.isEmpty {
-                ForEach(controller.discoveredEndpoints) { endpoint in
-                    Button {
-                        baseURL = endpoint.baseURL.absoluteString
-                        if let firstModel = endpoint.models.first {
-                            model = firstModel
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: baseURL == endpoint.baseURL.absoluteString ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(.accentColor)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("localhost:\(endpoint.port)")
-                                    .font(.system(size: 12, weight: .medium))
-                                Text(endpoint.models.joined(separator: ", "))
-                                    .font(.caption.monospaced())
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(2)
+                VStack(spacing: 6) {
+                    ForEach(controller.discoveredEndpoints) { endpoint in
+                        Button {
+                            baseURL = endpoint.baseURL.absoluteString
+                            if let firstModel = endpoint.models.first {
+                                model = firstModel
                             }
-                            Spacer()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: baseURL == endpoint.baseURL.absoluteString ? "largecircle.fill.circle" : "circle")
+                                    .foregroundColor(.accentColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("localhost:\(endpoint.port)")
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text(endpoint.models.joined(separator: ", "))
+                                        .font(.caption.monospaced())
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                            }
+                            .padding(8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(baseURL == endpoint.baseURL.absoluteString
+                                          ? Color.accentColor.opacity(0.08)
+                                          : Color.clear)
+                            )
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, 4)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             } else if !controller.isDiscoveringLMStudio {
-                Text("Ingen LM Studio fundet på localhost. Start LM Studio og klik 'Find igen'.")
-                    .font(.caption)
-                    .foregroundColor(.orange)
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                    Text("Ingen LM Studio fundet på localhost.")
+                        .font(.caption)
+                }
+                .foregroundColor(.orange)
+                .padding(.vertical, 6)
             }
 
             Divider().padding(.vertical, 4)
 
-            TextField("Base URL", text: $baseURL)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption.monospaced())
-            TextField("Model", text: $model)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption.monospaced())
-
-            Text("Saga scanner localhost-porte 1234, 1235, 8080, 5000, 11434, 8000 ved hver app-start. Bruges kun til mode-routing — pure dictation virker uden.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Manuel konfiguration")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+                TextField("Base URL", text: $baseURL)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption.monospaced())
+                TextField("Model", text: $model)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption.monospaced())
+            }
         }
     }
 }
+
+// MARK: - Modes
 
 struct ModesSettingsTab: View {
     @EnvironmentObject private var controller: SagaController
@@ -317,31 +362,14 @@ struct ModesSettingsTab: View {
     @State private var editingMode: Mode? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Modes")
-                        .font(.headline)
-                    Spacer()
-                    Button {
-                        showNewModeEditor = true
-                    } label: {
-                        Label("Ny custom mode", systemImage: "plus.circle")
-                    }
-                    .controlSize(.small)
-                }
-                Text("Tal med en trigger-frase foran for at aktivere en mode. Slå dem fra eller lav dine egne nedenfor.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if !controller.modes.custom.isEmpty {
-                        Text("Custom (\(controller.modes.custom.count))")
-                            .font(.caption.bold())
-                            .foregroundColor(.secondary)
-                        VStack(alignment: .leading, spacing: 8) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if !controller.modes.custom.isEmpty {
+                    SettingsCard(
+                        "Custom modes (\(controller.modes.custom.count))",
+                        footer: "Egne triggers + system-prompts."
+                    ) {
+                        VStack(alignment: .leading, spacing: 6) {
                             ForEach(controller.modes.custom) { mode in
                                 ModeRow(mode: mode, isCustom: true) {
                                     editingMode = mode
@@ -350,59 +378,66 @@ struct ModesSettingsTab: View {
                             }
                         }
                     }
+                }
 
-                    Text("Indbyggede")
-                        .font(.caption.bold())
-                        .foregroundColor(.secondary)
-                    VStack(alignment: .leading, spacing: 8) {
+                SettingsCard(
+                    "Indbyggede modes",
+                    footer: "Tal med en trigger-frase foran for at aktivere. Slå fra for ren dictation."
+                ) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(Mode.builtins) { mode in
                             ModeRow(mode: mode, isCustom: false, onEdit: nil)
                                 .environmentObject(controller)
                         }
                     }
                 }
-            }
 
-            Divider()
+                SettingsCard(
+                    "Test mode",
+                    footer: "Skriv en trigger + tekst og se LM Studio-output."
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField("Fx 'oversæt til engelsk hej verden'", text: $testInput, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...4)
+                        HStack {
+                            Button(testRunning ? "Kører…" : "Test") { runTest() }
+                                .disabled(testRunning || testInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                            Spacer()
+                            if let err = testError {
+                                Text(err)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .lineLimit(1)
+                            }
+                        }
+                        if !testOutput.isEmpty {
+                            ScrollView {
+                                Text(testOutput)
+                                    .font(.body)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            }
+                            .frame(maxHeight: 80)
+                            .padding(8)
+                            .background(Color.accentColor.opacity(0.08))
+                            .cornerRadius(6)
+                        }
+                    }
+                }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Test mode")
-                    .font(.system(size: 12, weight: .semibold))
-                Text("Skriv en trigger-frase + tekst og se LM Studio-output:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                TextField("Fx 'oversæt til engelsk hej verden'", text: $testInput, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(2...4)
                 HStack {
-                    Button(testRunning ? "Kører…" : "Test") {
-                        runTest()
-                    }
-                    .disabled(testRunning || testInput.trimmingCharacters(in: .whitespaces).isEmpty)
                     Spacer()
-                    if let err = testError {
-                        Text(err)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .lineLimit(1)
+                    Button {
+                        showNewModeEditor = true
+                    } label: {
+                        Label("Ny custom mode", systemImage: "plus.circle.fill")
                     }
-                }
-                if !testOutput.isEmpty {
-                    ScrollView {
-                        Text(testOutput)
-                            .font(.body)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                    .frame(maxHeight: 80)
-                    .padding(8)
-                    .background(Color.accentColor.opacity(0.08))
-                    .cornerRadius(6)
+                    .controlSize(.regular)
                 }
             }
-
+            .padding(20)
         }
-        .padding()
         .sheet(isPresented: $showNewModeEditor) {
             CustomModeEditor()
                 .environmentObject(controller)
@@ -421,7 +456,7 @@ struct ModesSettingsTab: View {
             defer { testRunning = false }
             do {
                 let result = try await controller.modes.route(text: testInput, controller: controller)
-                testOutput = result.text + (result.modeApplied ? "" : "  (ingen mode matchede — pure dictation passthrough)")
+                testOutput = result.text + (result.modeApplied ? "" : "  (ingen mode matchede)")
             } catch let err as ModeError {
                 testError = err.errorDescription
             } catch {
@@ -438,7 +473,7 @@ struct ModeRow: View {
     var onEdit: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Toggle(isOn: Binding(
                 get: { controller.modes.isEnabled(mode) },
                 set: { controller.modes.setEnabled($0, for: mode) }
@@ -463,61 +498,169 @@ struct ModeRow: View {
                 Text(mode.triggers.joined(separator: " · "))
                     .font(.caption.monospaced())
                     .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
             }
             Spacer()
             if isCustom, let onEdit {
                 Button {
                     onEdit()
                 } label: {
-                    Image(systemName: "pencil")
+                    Image(systemName: "pencil.circle")
                         .foregroundColor(.secondary)
+                        .font(.system(size: 16))
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 8)
-        .background(Color.gray.opacity(0.06))
-        .cornerRadius(6)
+        .padding(.vertical, 4)
     }
 }
+
+// MARK: - Reminders
+
+struct RemindersSettingsTab: View {
+    @EnvironmentObject private var controller: SagaController
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsCard(
+                    "Notifikations-adgang",
+                    footer: "Saga skemalægger reminders som lokale macOS-notifikationer."
+                ) {
+                    HStack(spacing: 10) {
+                        Image(systemName: controller.reminders.permissionGranted ? "checkmark.circle.fill" : "exclamationmark.circle")
+                            .foregroundColor(controller.reminders.permissionGranted ? .green : .orange)
+                        Text(controller.reminders.permissionGranted ? "Tilladt" : "Mangler")
+                            .font(.system(size: 13))
+                        Spacer()
+                        if !controller.reminders.permissionGranted {
+                            Button("Spørg") {
+                                Task { _ = await controller.reminders.requestPermissionIfNeeded() }
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
+                SettingsCard(
+                    "Skemalagte (\(controller.reminders.scheduled.count))",
+                    footer: "Sig 'mind mig om at ringe til Lars i morgen kl 14' for at oprette en."
+                ) {
+                    if controller.reminders.scheduled.isEmpty {
+                        HStack {
+                            Spacer()
+                            Text("Ingen kommende reminders")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.vertical, 16)
+                            Spacer()
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(controller.reminders.scheduled) { reminder in
+                                ReminderRow(reminder: reminder)
+                                    .environmentObject(controller)
+                            }
+                            HStack {
+                                Spacer()
+                                Button("Ryd alt", role: .destructive) {
+                                    controller.reminders.clearAll()
+                                }
+                                .controlSize(.small)
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
+struct ReminderRow: View {
+    @EnvironmentObject private var controller: SagaController
+    let reminder: ScheduledReminder
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: reminder.hasFired ? "bell.slash" : "bell.fill")
+                .foregroundColor(reminder.hasFired ? .secondary : Color(red: 0.20, green: 0.55, blue: 0.95))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(reminder.title)
+                    .font(.system(size: 13, weight: .medium))
+                Text(reminder.formattedFireDate)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if !reminder.body.isEmpty {
+                    Text(reminder.body)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            Spacer()
+            Button {
+                controller.reminders.cancel(id: reminder.id)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary.opacity(0.6))
+                    .font(.system(size: 14))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - About
 
 struct AboutTab: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 64))
-                .foregroundColor(.accentColor)
-            Text("Saga").font(.system(size: 24, weight: .bold))
-            Text("Version \(Bundle.main.shortVersion)")
-                .foregroundColor(.secondary)
-            Text("Mac-native voice assistant til dansk dictation og AI-modes.")
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            Divider().padding(.vertical, 8)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Drevet af NVIDIA Canary-1b-v2 (CC BY 4.0) → CoreML + lokal LM Studio.")
-                Text("Ingen telemetri. Ingen cloud. Personlig brug.")
-            }
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .multilineTextAlignment(.center)
-            Spacer()
-        }
-        .padding()
-    }
-}
+    @EnvironmentObject private var controller: SagaController
 
-struct PermissionStatusRow: View {
-    let title: String
-    let status: String
     var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(status)
-                .foregroundColor(status.contains("Tilladt") || status.contains("authorized") ? .green : .orange)
+        ScrollView {
+            VStack(spacing: 16) {
+                Image(systemName: "waveform.circle.fill")
+                    .font(.system(size: 64))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(red: 0.20, green: 0.55, blue: 0.95), Color(red: 0.40, green: 0.70, blue: 1.0)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                Text("Saga").font(.system(size: 24, weight: .bold))
+                Text("Version \(Bundle.main.shortVersion)")
+                    .foregroundColor(.secondary)
+                Text("Mac-native voice assistant til dansk dictation.")
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                Divider().padding(.vertical, 8)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Drevet af NVIDIA Canary-1b-v2 (CC BY 4.0) → CoreML.")
+                    Text("Optionel mode-routing via lokal LM Studio.")
+                    Text("Wake-word via Apples on-device speech recognition.")
+                    Text("Ingen telemetri. Ingen cloud.")
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+
+                Spacer(minLength: 12)
+
+                HStack(spacing: 12) {
+                    Link("GitHub", destination: URL(string: "https://github.com/Parthee-Vijaya/saga-mac")!)
+                    Link("INSTALL", destination: URL(string: "https://github.com/Parthee-Vijaya/saga-mac/blob/main/docs/INSTALL.md")!)
+                    Link("ROADMAP", destination: URL(string: "https://github.com/Parthee-Vijaya/saga-mac/blob/main/docs/ROADMAP.md")!)
+                }
+                .font(.caption)
+            }
+            .padding(20)
         }
     }
 }
