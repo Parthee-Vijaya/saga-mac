@@ -30,6 +30,12 @@ struct SagaAppMain: App {
         .windowResizability(.contentSize)
         .defaultSize(width: 640, height: 480)
 
+        Window("Saga – Document-analyse", id: "documents") {
+            DocumentAnalysisWindow()
+                .environmentObject(appDelegate.controller)
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 720, height: 480)
     }
 }
 

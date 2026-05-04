@@ -153,6 +153,16 @@ public struct StatusView: View {
                 Spacer()
 
                 Button {
+                    openWindow(id: "documents")
+                } label: {
+                    Label("Document-analyse", systemImage: "doc.text.magnifyingglass")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
                     Task {
                         await controller.shutdown()
                         NSApp.terminate(nil)
