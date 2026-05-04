@@ -77,10 +77,17 @@ Mål: én .dmg som kan dropped på en frisk Mac og virker out-of-the-box.
 - [x] Verificeret: DMG mounter, Saga.app er signed, mlpackages er bundlet
 - [x] Output: `dist/Saga-0.1.0.dmg`
 
-### M8.D — First-run setup wizard
-- [ ] Detect manglende prerequisites (mic permission, AX permission, mlpackages)
-- [ ] Onboarding-vindue: vælg hotkey, granté permissions, opt-in til LM Studio
-- [ ] Vises kun på første launch og ved manglende permissions
+### M8.D — First-run setup wizard (done · 2026-05-04)
+- [x] FirstRunWindow.swift: 4-trin onboarding (Sådan virker det / hotkey / permissions / LM Studio)
+- [x] Direkte NSWindow via NSHostingController (SwiftUI Window-scenes mounter ikke i MenuBarExtra-kontekst)
+- [x] Conditional vises kun hvis UserDefault `firstRunComplete` er false
+- [x] StepCard / BulletText / PermissionRow / HelpHint reusable subviews
+- [x] Live polling af mic + AX status (Timer 1.5s) → opdaterer "Granté permissions"-knapper
+- [x] Hotkey-picker live: ændringer reload event-tap straks
+- [x] LM Studio-status: "Søger…" / "Fundet" / "Ingen fundet — installer fra lmstudio.ai"
+- [x] "Spring over" + "Kom i gang"-knapper (sidstnævnte disabled før permissions er grantet)
+- [x] NSWindowDelegate: marker firstRunComplete også hvis bruger lukker via X-knap
+- [x] Verificeret: window åbner ved fresh launch (firstRunComplete=false)
 
 ### M8.E — Distribution README + smoke-test
 - [ ] INSTALL.md med Gatekeeper-bypass-instruktioner

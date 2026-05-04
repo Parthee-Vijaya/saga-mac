@@ -29,6 +29,7 @@ public final class SagaController: ObservableObject {
     @Published public private(set) var booted = false
     @Published public private(set) var discoveredEndpoints: [DiscoveredEndpoint] = []
     @Published public private(set) var isDiscoveringLMStudio = false
+    @Published public var showFirstRun: Bool = false
 
     public init() {
         self.hud = RecordingHUDController()
@@ -111,6 +112,14 @@ public final class SagaController: ObservableObject {
         hotkeys.stopListening()
         audio.stop()
         health.stop()
+    }
+
+    public func requestFirstRun() {
+        showFirstRun = true
+    }
+
+    public func dismissFirstRun() {
+        showFirstRun = false
     }
 
     public func reloadASR() {
