@@ -1,73 +1,169 @@
 # Saga
 
-Mac-native voice assistant til dansk dictation og AI-modes — inspireret af Emma,
-men kører Hviske v5.3 lokalt og bruger LM Studio til mode-LLM.
+Mac-native voice assistant til dansk dictation og AI-modes — inspireret af Emma.
 
-> **Status:** M0 (scaffold). Se [docs/ROADMAP.md](docs/ROADMAP.md).
+**Hold `⌥` Højre Option → tal dansk → tekst indsættes ved cursor.**
 
-## Hvordan virker den
+> **Status M0.G** (≈ M1 done) — pipeline virker end-to-end på Apple Silicon.
+> Se [docs/ROADMAP.md](docs/ROADMAP.md) for hvad der er næste.
 
-Hold `Fn`-tasten → tal dansk → tekst indsættes ved cursor.
+## Hvad virker lige nu (verificeret)
 
-Sig "Hey Saga, oversæt det til engelsk" → Saga transcriberer, sender til lokal
-LLM, og skriver svaret tilbage.
+- ✅ Hold-til-tal hotkey (Højre Option, virker på Apple-keyboard og Logitech MX-serien)
+- ✅ Audio capture via AVAudioRecorder — robust på Built-in mic, AirPods, USB
+- ✅ Live waveform-HUD med tidstæller under recording
+- ✅ Dansk speech-to-text via NVIDIA Canary-1b-v2 (CoreML/ANE) — RTF ~0.14 efter warmup
+- ✅ Tekst inserted ved cursor i hvilken som helst app (TextEdit, Notes, browser, terminal/Claude Code, Slack, …)
+- ✅ Status-bar app med live health-status, transkriberings-historik og søgning
+- ✅ Persistent transkript-historik (`~/Library/Application Support/Saga/history.json`, max 100 entries)
+- ✅ Stabil Apple Development signing — TCC-permissions overlever rebuilds
 
-Alt kører lokalt: Hviske (ASR) på Apple Silicon via PyTorch+MPS, og din egen
-LM Studio til LLM-modes.
+## Hvad der mangler (roadmap)
+
+| Fase | Beskrivelse | Status |
+|---|---|---|
+| **M0** | Scaffold + grund-arkitektur | ✅ done |
+| **M0.D** | Pivot ASR til Canary CoreML (Hviske droppet) | ✅ done |
+| **M0.E-G** | AVAudioRecorder + Apple-keyboard fix + waveform-HUD | ✅ done |
+| **M2** | LM Studio modes (oversæt/format/opsummer/vibecode/LinkedIn) | ⚪ next |
+| **M3** | "Hey Saga" wake-word + voice-reminders | ⚪ |
+| **M4** | Vision (skærm-analyse via multi-modal LLM) | ⚪ |
+| **M5** | Document analysis (PDF/DOCX flagging af binding-perioder etc.) | ⚪ |
+| **M6** | Custom modes editor i Settings | ⚪ |
+| **M7** | Integrations (n8n/Make/Apple Kalender/Sheets) | ⚪ |
+| **M8** | Distribution (DMG, notarization, Sparkle auto-update) | ⚪ |
+| **Sideprojekt** | hviske-coreml — Hviske → CoreML for bedre dansk-WER | ⚪ ~10 dage |
 
 ## Arkitektur
 
 ```
-Saga.app (Swift)  ──HTTP──→  saga-sidecar (Python+MPS, Hviske v5.3)
-                  ──HTTP──→  LM Studio (localhost:1234, gemma-4-26b)
+Saga.app (Swift 6, SwiftUI status bar)
+  ├─ AVAudioRecorder ────→ 16 kHz mono WAV
+  ├─ CanaryKit (CoreML) ─→ ANE-accelereret Conformer encoder + Cohere decoder
+  └─ LM Studio (HTTP) ──→ optionel mode-LLM (oversæt, formatér, etc.)
 ```
 
-Se [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+ASR kører fuldt **on-device** — ingen audio forlader maskinen. LM Studio er valgfri
+og kun nødvendig for modes (oversæt/formatér); pure dictation virker uden.
 
-## Krav
+Se [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for moduldiagram + dataflow.
 
-- macOS 14+ (Tahoe-fri test på 26.x)
-- Apple Silicon (M1+) — PyTorch MPS er meget langsommere end CUDA, så pre-M1 er upraktisk
-- Xcode 16+ med Swift 6.2
-- `xcodegen` (`brew install xcodegen`)
-- `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- LM Studio kørende på `localhost:1234` (eller skift i Settings)
-- ~12 GB ledig disk (Hviske model 4-8 GB + dependencies)
+## Hardware-krav (Mac)
+
+| | Minimum | Anbefalet |
+|---|---|---|
+| **Mac** | M1 (2020+) — kræver Apple Neural Engine for Canary-acceleration | M2 / M3 / M4 |
+| **macOS** | 15.0 (Sequoia) | 26+ (Tahoe) |
+| **RAM** | 16 GB | 24-32 GB (LM Studio + Saga + browser samtidig) |
+| **Disk** | ~5 GB | ~20 GB (LM Studio-modeller fylder) |
+
+Intel-Macs er ikke supporterede — Canary-mlpackages er kompileret til Apple Silicon
+og falder tilbage til CPU på Intel, hvilket giver RTF ~5× (ubrugeligt live).
+
+## Disk + RAM-forbrug konkret
+
+### Saga + Canary (ASR)
+
+| Komponent | Disk | RAM (kørende) |
+|---|---|---|
+| Saga.app (signed Debug-build) | ~12 MB | ~80 MB idle |
+| `CanaryEncoder.mlpackage` (FP16) | 1.5 GB | i model-RAM |
+| `CanaryDecoderLM.mlpackage` (FP16) | 291 MB | i model-RAM |
+| `CanaryPreprocessor.mlpackage` | 1.2 MB | minimal |
+| **Total Saga + Canary FP16** | **~1.8 GB** | **~3.6 GB peak (model loaded)** |
+| Alternativ: int4-decoder | -218 MB | -200 MB |
+
+Cold-start: 8-22 sek (CoreML JIT-kompilerer ANE-kerner). Warm-start: <1 sek.
+
+### LM Studio (LLM, valgfri til modes)
+
+Saga's default model (kan ændres i Settings):
+
+**`gemma-4-26b-a4b` (Q4_K_M-kvantiseret GGUF)**
+- 26B total params, 4B aktive (Mixture of Experts)
+- Disk: **~16 GB**
+- RAM: **~18-20 GB** under inference
+- Inference: ~30-60 tokens/sek på M-series
+
+Hvis 16 GB RAM er stramt, kan du i stedet bruge:
+- `gemma-2-9b-it-Q4_K_M` (~5 GB disk, ~7 GB RAM, lidt dårligere dansk)
+- `llama-3.1-8b-instruct-Q4_K_M` (~5 GB disk, ~7 GB RAM, god generel)
+- `qwen2.5-7b-instruct-Q4_K_M` (~4 GB disk, ~6 GB RAM)
+
+LM Studio app fylder ~200 MB selv (separat installation fra `lmstudio.ai`).
+
+### Total peak disk + RAM
+
+|  | Disk | RAM |
+|---|---|---|
+| **Saga + Canary alene** | 1.8 GB | 3.6 GB |
+| **+ LM Studio + gemma-4-26b** | 18 GB | 24 GB |
+| **+ macOS + browsere kørende** | — | ~30 GB anbefalet |
 
 ## Setup
 
 ```bash
-# 1. Klon
-git clone git@github.com:Parthee-Vijaya/saga.git
-cd saga
+# Forudsætninger
+brew install xcodegen
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Setup Python sidecar + download model
-./scripts/setup.sh
+# Klon dette repo + canary-coreml ved siden af
+cd ~/projekter
+git clone git@github.com:Parthee-Vijaya/saga-mac.git saga
+git clone git@github.com:Parthee-Vijaya/canary-coreml.git
+cd canary-coreml/python && uv venv --python 3.11 .venv && source .venv/bin/activate
+uv pip install -r requirements.txt
 
-# 3. Generér Xcode-projekt
-cd saga-app && xcodegen generate && open SagaApp.xcodeproj
+# Konvertér Canary-1b-v2 til CoreML (~5-10 min)
+python 01_download.py
+python 03_pytorch_to_coreml.py
+python 03b_reexport_decoder_with_lmhead.py
+python 06_export_preprocessor.py
+python _export_tokenizer_json.py
 
-# 4. Byg & kør i Xcode (Cmd+R)
-#    Ved første kørsel granté: Mikrofon, Accessibility, (senere) Skærmoptagelse
+# Generér + byg Saga
+cd ../../saga/saga-app
+xcodegen generate
+open SagaApp.xcodeproj
+# Cmd+R i Xcode. Ved første run: granté Mikrofon + Accessibility i System Settings.
 ```
 
-## Faser
+For brugere uden Apple Developer-konto: fjern `CODE_SIGN_IDENTITY` og
+`DEVELOPMENT_TEAM` linjerne i `saga-app/project.yml` — så bygger den ad-hoc
+(virker, men permissions skal grantes på ny ved hver rebuild).
 
-| Fase | Status |
-|------|--------|
-| M0 — scaffold | 🟢 done |
-| M1 — dictation pipeline | ⚪ next |
-| M2 — LM Studio modes | ⚪ |
-| M3 — Hey Saga + reminders | ⚪ |
-| M4 — vision | ⚪ |
-| M5 — document analysis | ⚪ |
-| M6 — custom modes | ⚪ |
-| M7 — integrations | ⚪ |
-| M8 — distribution | ⚪ |
+## Brug
+
+1. Åbn Saga via Spotlight (`Cmd+Space → Saga`). Status-bar-ikon dukker op.
+2. Sæt cursor i hvilket-som-helst tekstfelt (Notes, Mail, Slack, Claude Code, …)
+3. **Hold Højre Option (`⌥`)** → tal dansk → slip → tekst indsættes
+4. Klik status-bar-ikonet for live status, sidste 5 transkriptioner og indstillinger
+5. Cmd+Click historik-vinduet for søgning + kopier-til-clipboard
+
+## Modes (M2 — kommer)
+
+I et fremtidigt release vil "trigger-ord" route output gennem LM Studio:
+
+- "oversæt til engelsk: hej verden" → "Hello world"
+- "opsummer: [lang dansk tekst]" → 2-sætnings TL;DR
+- "linkedin: vi annoncerede X" → polished LinkedIn-post
+- "kode: en API der henter vejret" → engelsk prompt til Lovable/Claude Code
+
+## Privacy
+
+- Ingen audio forlader maskinen (Canary kører lokalt)
+- Ingen telemetri, ingen analytics
+- Transkripter gemmes lokalt (kan slettes via "Ryd alt"-knap i historik)
+- Hvis LM Studio er konfigureret: kun mode-prompts sendes til localhost:1234
 
 ## Licenser
 
-- **Saga**: privat. Personlig brug.
-- **Hviske v5.3** (syvai/hviske-v5.3): CC BY-NC 4.0 — ikke-kommerciel. Saga
-  bundler ikke modellen; brugeren downloader den selv via Hugging Face.
-- **PyTorch, FastAPI, Transformers, libsndfile**: respektive open-source-licenser.
+- **Saga**: privat projekt, personlig brug.
+- **Canary-1b-v2** (NVIDIA): CC BY 4.0 — fri commercial brug med attribution.
+  CoreML-konvertering ligger i [canary-coreml-repo](https://github.com/Parthee-Vijaya/canary-coreml).
+- **CanaryKit** (Swift Package i canary-coreml): MIT.
+- **PyTorch, CoreMLTools, Transformers, NeMo**: respektive open-source-licenser.
+
+## Repo
+
+Privat: https://github.com/Parthee-Vijaya/saga-mac

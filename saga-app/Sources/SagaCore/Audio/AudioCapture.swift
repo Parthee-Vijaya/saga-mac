@@ -13,12 +13,17 @@ import OSLog
 /// læses filen ind via soundfile-lignende decode og returneres som
 /// `CapturedAudio` (samme interface som før).
 @MainActor
-public final class AudioCapture {
+public final class AudioCapture: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "audio")
 
     private var recorder: AVAudioRecorder?
     private var tempURL: URL?
     private let outputSampleRate: Int = 16_000
+
+    // Level-meter rolling history til waveform-visualization.
+    // 48 levels = ~1.6s historik ved 30 Hz polling. UI kan slice'e i mindre vinduer.
+    @Published public private(set) var levelHistory: [Float] = Array(repeating: 0, count: 48)
+    private var levelTask: Task<Void, Never>?
 
     public init() {}
 
@@ -53,13 +58,48 @@ public final class AudioCapture {
             self.recorder = rec
             self.tempURL = url
             log.info("Recorder startet → \(url.lastPathComponent, privacy: .public)")
+            startLevelPolling()
         } catch {
             log.error("AVAudioRecorder.init fejlede: \(error.localizedDescription, privacy: .public)")
         }
     }
 
+    private func startLevelPolling() {
+        levelTask?.cancel()
+        levelTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                if let rec = self.recorder, rec.isRecording {
+                    rec.updateMeters()
+                    let avg = rec.averagePower(forChannel: 0)  // -160..0 dBFS
+                    // Normaliser: -50 dB = 0, -10 dB = ~0.8, 0 dB = 1
+                    let normalized = max(0, min(1, (avg + 50) / 45))
+                    self.appendLevel(normalized)
+                } else {
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 33_000_000)  // ~30 Hz
+            }
+        }
+    }
+
+    private func appendLevel(_ level: Float) {
+        var history = levelHistory
+        history.removeFirst()
+        history.append(level)
+        levelHistory = history
+    }
+
+    private func resetLevels() {
+        levelHistory = Array(repeating: 0, count: levelHistory.count)
+    }
+
     @discardableResult
     public func stop() -> CapturedAudio {
+        levelTask?.cancel()
+        levelTask = nil
+        resetLevels()
+
         guard let rec = recorder, let url = tempURL else {
             return CapturedAudio(samples: [], sampleRate: outputSampleRate)
         }

@@ -3,26 +3,48 @@
 ## M0 — Scaffold (done · 2026-05-04)
 - [x] Repo-struktur, GitHub privat repo, README, ARCHITECTURE, ROADMAP
 - [x] Swift Package + xcodegen project.yml
-- [x] Python sidecar med uv-pyproject + Hviske wrapper-skeleton
 - [x] Foundation-kode (Hotkey, Audio, Cursor, Bridge stubs)
 - [x] Setup-script
 
-## M1 — Dictation pipeline (next)
-End-to-end: Fn-tast → tale → Hviske → cursor.
+## M0.B — Live status menu + historik (done · 2026-05-04)
+- [x] MenuBarExtra med live system-status (Hviske/LM Studio health-rækker)
+- [x] Persistent transcript-historik (~/Library/Application Support/Saga/history.json)
+- [x] HistoryWindow med søgning + kopier-til-clipboard
+- [x] HealthMonitor med periodisk polling
 
-- [ ] Færdiggør `HotkeyManager` (CGEventTap, Fn-detection, key-down/up state)
-- [ ] Færdiggør `AudioCapture` (AVAudioEngine, 16kHz resample, PCM-output)
-- [ ] Hviske server: download model, test transcribe, FastAPI POST /transcribe
-- [ ] `HviskeBridge`: multipart POST audio som WAV bytes
-- [ ] `CursorInjector`: CGEvent unicode typing med UTF-16 chars
-- [ ] `RecordingHUD`: lille overlay window med mic-icon + audio level
-- [ ] `SidecarLauncher`: Process-spawn, /health-poll, restart-on-crash
-- [ ] `MenubarController`: status bar icon (idle / recording / error states)
-- [ ] Permission flow: mic + accessibility prompts + System Settings deeplink
-- [ ] End-to-end manuel test
+## M0.C — App-launch lifecycle (done · 2026-05-04)
+- [x] NSApplicationDelegate sikrer boot ved app-start (ikke kun ved menu-åbning)
+- [x] SidecarLauncher.locateUv() søger ~/.local/bin, /opt/homebrew/bin etc.
 
-**Acceptance:** Brugeren kan holde Fn, sige en sætning, slippe, og se teksten
-indsat i TextEdit/Slack/hvor som helst cursor er.
+## M0.D — ASR pivot Hviske → Canary CoreML (done · 2026-05-04)
+- [x] Verificeret med rigtig dansk audio: Hviske produced multilingual junk på macOS
+- [x] Pivot til canary-coreml (NVIDIA Canary-1b-v2, CoreML/ANE-acceleration)
+- [x] Fjernet Python-sidecar (`HviskeBridge`, `SidecarLauncher`)
+- [x] Ny `CanaryASRBridge` med samme interface
+- [x] HealthMonitor spejler ASRState fra bridge
+
+## M0.E — Robust audio + hotkey (done · 2026-05-04)
+- [x] AVAudioEngine → AVAudioRecorder (AVAudioEngine fanget 0 samples på AirPods)
+- [x] Hotkey-enum med rightOption/leftOption/rightCommand/rightControl/fn
+- [x] AX-permission retry-loop (auto-aktiverer hotkey efter grant)
+- [x] Diagnostic logging på info-level med privacy: .public
+
+## M0.F — Stabil signing (done · 2026-05-04)
+- [x] CODE_SIGN_IDENTITY pinned til Apple Development cert SHA1
+- [x] TCC-permissions overlever rebuilds (csreq tied til cert)
+
+## M0.G — Waveform-HUD (done · 2026-05-04)
+- [x] AudioCapture eksposer rolling levelHistory (30 Hz, 48 samples)
+- [x] Større HUD (440x145) med frosted glass + capsule-bars
+- [x] Live waveform under recording, shimmer under transcribe/route
+- [x] Sky-blue accent, rolling tidstæller (s.x → m:ss)
+- [x] Symmetrisk gradient-bars, boostet lave levels
+
+## M1 — Dictation pipeline (effectively done via M0.B-G)
+End-to-end: Højre Option → tale → Canary → cursor.
+
+**Acceptance:** ✅ Bruger holder ⌥, siger sætning, slipper, ser teksten indsat
+i TextEdit/Slack/Claude Code/browser. Verificeret 2026-05-04.
 
 ## M2 — LM Studio modes
 LLM-baserede modes — translate, format, summarize, vibe-code.
