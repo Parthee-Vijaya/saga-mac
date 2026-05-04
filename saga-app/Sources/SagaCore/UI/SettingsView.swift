@@ -163,28 +163,121 @@ struct LMStudioDiscoverySection: View {
 }
 
 struct ModesSettingsTab: View {
+    @EnvironmentObject private var controller: SagaController
+    @State private var testInput: String = "oversæt til engelsk hej verden"
+    @State private var testOutput: String = ""
+    @State private var testRunning: Bool = false
+    @State private var testError: String?
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Indbyggede modes")
-                .font(.headline)
-            ForEach(Mode.builtins) { mode in
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading) {
-                        Text(mode.title).font(.body.bold())
-                        Text(mode.triggers.joined(separator: " · "))
-                            .font(.caption.monospaced())
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(.vertical, 4)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Indbyggede modes")
+                    .font(.headline)
+                Text("Tal med en trigger-frase foran for at aktivere en mode. Slå dem fra hvis du vil have ren dictation uden auto-routing.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            Spacer()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(controller.modes.modes) { mode in
+                        ModeRow(mode: mode)
+                            .environmentObject(controller)
+                    }
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Test mode")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Skriv en trigger-frase + tekst og se LM Studio-output:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                TextField("Fx 'oversæt til engelsk hej verden'", text: $testInput, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(2...4)
+                HStack {
+                    Button(testRunning ? "Kører…" : "Test") {
+                        runTest()
+                    }
+                    .disabled(testRunning || testInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Spacer()
+                    if let err = testError {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .lineLimit(1)
+                    }
+                }
+                if !testOutput.isEmpty {
+                    ScrollView {
+                        Text(testOutput)
+                            .font(.body)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: 80)
+                    .padding(8)
+                    .background(Color.accentColor.opacity(0.08))
+                    .cornerRadius(6)
+                }
+            }
+
             Text("Custom modes kommer i M6.")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .padding()
+    }
+
+    private func runTest() {
+        testRunning = true
+        testError = nil
+        testOutput = ""
+        Task {
+            defer { testRunning = false }
+            do {
+                let result = try await controller.modes.route(text: testInput, controller: controller)
+                testOutput = result.text + (result.modeApplied ? "" : "  (ingen mode matchede — pure dictation passthrough)")
+            } catch let err as ModeError {
+                testError = err.errorDescription
+            } catch {
+                testError = error.localizedDescription
+            }
+        }
+    }
+}
+
+struct ModeRow: View {
+    @EnvironmentObject private var controller: SagaController
+    let mode: Mode
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Toggle(isOn: Binding(
+                get: { controller.modes.isEnabled(mode) },
+                set: { controller.modes.setEnabled($0, for: mode) }
+            )) { EmptyView() }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(mode.title).font(.system(size: 13, weight: .medium))
+                Text(mode.triggers.joined(separator: " · "))
+                    .font(.caption.monospaced())
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(Color.gray.opacity(0.06))
+        .cornerRadius(6)
     }
 }
 

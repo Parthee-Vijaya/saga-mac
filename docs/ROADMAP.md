@@ -98,20 +98,21 @@ Mål: én .dmg som kan dropped på en frisk Mac og virker out-of-the-box.
 - [x] Forventet performance-tabel for M-series Mac
 - [x] DMG rebuilt med M8.B-D features (auto-detect + first-run wizard) — 1.7 GB
 
-## M2 — LM Studio modes
-LLM-baserede modes — translate, format, summarize, vibe-code.
+## M2 — LM Studio modes (done · 2026-05-04)
+LLM-baserede modes — translate, format, summarize, vibe-code, linkedin.
 
-- [ ] `LMStudioBridge` (OpenAI-kompatibel HTTP-klient)
-- [ ] `Mode`-protocol + indbyggede implementationer:
-  - [ ] `TranslateMode` (da↔en, da↔es, etc.)
-  - [ ] `FormatMode` (clean dictation: punctuation, capitalization)
-  - [ ] `SummarizeMode` (TL;DR af lang dictation)
-  - [ ] `VibeCodeMode` (NL → AI-prompt for Lovable/Claude Code)
-- [ ] `ModeRouter` — trigger-word parser ("oversæt til X", "opsummer", "kode:")
-- [ ] Fallback: hvis LM Studio er nede → vis fejl + fall back til pure dictation
-- [ ] Mode-vælger i Settings (toggle hver mode on/off)
+- [x] `LMStudioBridge` (OpenAI-kompatibel HTTP-klient — done i M0.B)
+- [x] `Mode`-protocol + 6 indbyggede implementationer (done i M0.B)
+- [x] `ModeRouter` med trigger-word matching (done i M0.B)
+- [x] M2-tilføjelser: persistent disabled-set i UserDefaults
+- [x] M2-tilføjelser: SettingsView med toggles per mode + test-input/output
+- [x] M2-tilføjelser: graceful fallback til rå-transkription hvis LM Studio fejler
+- [x] M2-tilføjelser: HUD viser mode-titel under routing (`Mode: Oversæt til engelsk`)
+- [x] M2-tilføjelser: ModeError.lmStudioFailed med fallback-text
 
-**Acceptance:** Sig "oversæt til engelsk: hej verden" → "Hello world" indsættes.
+**Acceptance:** ✅ Bruger kan slå modes til/fra i Settings, teste dem live,
+og hvis LM Studio er nede får brugeren rå-transkription i stedet for fejl.
+
 
 ## M3 — Hey Saga + reminders
 Wake-word + voice-aktiverede reminders.

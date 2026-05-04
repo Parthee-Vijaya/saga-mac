@@ -5,30 +5,69 @@ import OSLog
 /// hvis ja, sender den til LM Studio med system-prompt'en for den mode.
 /// Hvis nej, returneres teksten uændret (pure dictation).
 @MainActor
-public final class ModeRouter {
+public final class ModeRouter: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "modes")
+    private let storageKey = "modeRouter.disabled"
 
     public var modes: [Mode] = Mode.builtins
-    public var enabled: Set<String> = Set(Mode.builtins.map { $0.id })
 
-    public init() {}
+    /// Sættet af mode-IDer brugeren har slået FRA. Default = ingen er fra.
+    /// Gemmes i UserDefaults som komma-separeret string.
+    @Published public private(set) var disabled: Set<String> = []
 
-    public func route(text: String, controller: SagaController) async throws -> String {
+    /// Hvilken mode (hvis nogen) der lige nu kører — bruges af HUD.
+    @Published public private(set) var activeMode: Mode? = nil
+
+    public init() {
+        loadDisabled()
+    }
+
+    public func isEnabled(_ mode: Mode) -> Bool {
+        !disabled.contains(mode.id)
+    }
+
+    /// Tjek hurtigt om en tekst ville matche en mode — uden at kalde LM Studio.
+    /// Bruges af UI til at vise hvilken mode der er ved at blive aktiveret.
+    public func previewMatch(for text: String) -> Mode? {
+        matchMode(in: text.trimmingCharacters(in: .whitespacesAndNewlines))?.mode
+    }
+
+    public func setEnabled(_ enabled: Bool, for mode: Mode) {
+        if enabled {
+            disabled.remove(mode.id)
+        } else {
+            disabled.insert(mode.id)
+        }
+        persistDisabled()
+    }
+
+    public func route(text: String, controller: SagaController) async throws -> RouteResult {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
+        guard !trimmed.isEmpty else { return RouteResult(text: "", mode: nil) }
 
-        if let match = matchMode(in: trimmed) {
-            log.info("Match: mode=\(match.mode.id), payload=\(match.payload.prefix(80))")
-            return try await match.mode.run(payload: match.payload, controller: controller)
+        guard let match = matchMode(in: trimmed) else {
+            // Ingen mode → pure dictation
+            return RouteResult(text: trimmed, mode: nil)
         }
 
-        // Ingen mode → pure dictation
-        return trimmed
+        log.info("Match: mode=\(match.mode.id), payload=\(match.payload.prefix(80))")
+        activeMode = match.mode
+        defer { activeMode = nil }
+
+        do {
+            let processed = try await match.mode.run(payload: match.payload, controller: controller)
+            return RouteResult(text: processed, mode: match.mode)
+        } catch {
+            log.error("Mode \(match.mode.id) fejlede: \(error.localizedDescription, privacy: .public)")
+            // Graceful fallback: hvis LM Studio fejler, indsæt rå-transkription
+            // i stedet for at intet sker. Bruger får så minimum sin tale tilbage.
+            throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+        }
     }
 
     private func matchMode(in text: String) -> (mode: Mode, payload: String)? {
         let lower = text.lowercased()
-        for mode in modes where enabled.contains(mode.id) {
+        for mode in modes where !disabled.contains(mode.id) {
             for trigger in mode.triggers {
                 if lower.hasPrefix(trigger.lowercased()) {
                     let payload = String(text.dropFirst(trigger.count)).trimmingCharacters(in: CharacterSet(charactersIn: " ,.:"))
@@ -38,9 +77,46 @@ public final class ModeRouter {
         }
         return nil
     }
+
+    // MARK: - Persistence
+
+    private func loadDisabled() {
+        let raw = UserDefaults.standard.string(forKey: storageKey) ?? ""
+        disabled = Set(raw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
+    }
+
+    private func persistDisabled() {
+        let joined = disabled.sorted().joined(separator: ",")
+        UserDefaults.standard.set(joined, forKey: storageKey)
+    }
 }
 
-public struct Mode: Identifiable, Sendable {
+public struct RouteResult: Sendable {
+    public let text: String
+    public let mode: Mode?
+
+    public var modeApplied: Bool { mode != nil }
+}
+
+public enum ModeError: Error, LocalizedError {
+    case lmStudioFailed(rawTranscript: String, underlying: Error)
+
+    public var errorDescription: String? {
+        switch self {
+        case .lmStudioFailed(_, let underlying):
+            return "LM Studio fejlede: \(underlying.localizedDescription). Start LM Studio og prøv igen."
+        }
+    }
+
+    /// Den rå tekst som fallback — Saga kan injecte det i stedet for at fejle helt.
+    public var fallbackText: String? {
+        switch self {
+        case .lmStudioFailed(let raw, _): return raw
+        }
+    }
+}
+
+public struct Mode: Identifiable, Sendable, Hashable {
     public let id: String
     public let title: String
     public let triggers: [String]
@@ -64,6 +140,9 @@ public struct Mode: Identifiable, Sendable {
         )
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    public static func == (lhs: Mode, rhs: Mode) -> Bool { lhs.id == rhs.id }
+    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
     public static let builtins: [Mode] = [
         Mode(

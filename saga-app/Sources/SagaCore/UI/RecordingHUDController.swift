@@ -23,10 +23,11 @@ public final class RecordingHUDController {
         model.state = .recording
         model.recordingStart = Date()
         model.errorMessage = nil
+        model.activeMode = nil
         ensureWindow().orderFrontRegardless()
     }
 
-    public func update(state: SagaState) {
+    public func update(state: SagaState, activeMode: Mode? = nil) {
         switch state {
         case .recording:
             model.state = .recording
@@ -35,11 +36,13 @@ public final class RecordingHUDController {
             }
         case .transcribing:
             model.state = .transcribing
-            // Bevar recordingStart så vi kan vise hvor lang optagelsen var
-        case .routing: model.state = .routing
+        case .routing:
+            model.state = .routing
+            model.activeMode = activeMode
         case .idle:
             model.state = .idle
             model.recordingStart = nil
+            model.activeMode = nil
         }
     }
 
@@ -47,6 +50,7 @@ public final class RecordingHUDController {
         window?.orderOut(nil)
         model.errorMessage = nil
         model.recordingStart = nil
+        model.activeMode = nil
     }
 
     public func show(error: Error) {
@@ -100,6 +104,7 @@ final class RecordingHUDModel: ObservableObject {
     @Published var state: HUDState = .idle
     @Published var errorMessage: String? = nil
     @Published var recordingStart: Date? = nil
+    @Published var activeMode: Mode? = nil
 
     enum HUDState {
         case idle, recording, transcribing, routing
@@ -230,7 +235,11 @@ struct RecordingHUDView: View {
         case .idle: return "Saga"
         case .recording: return "Lytter…"
         case .transcribing: return "Transskriberer"
-        case .routing: return "Tænker"
+        case .routing:
+            if let mode = model.activeMode {
+                return "Mode: \(mode.title)"
+            }
+            return "Tænker"
         }
     }
 

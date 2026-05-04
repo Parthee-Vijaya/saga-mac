@@ -197,18 +197,26 @@ public final class SagaController: ObservableObject {
                 state = .routing
                 hud.update(state: .routing)
 
-                let routed = try await modes.route(text: transcript.text, controller: self)
+                let result: RouteResult
+                do {
+                    // Først tjek hvilken mode (hvis nogen) for at sætte HUD-titel
+                    if let preview = modes.previewMatch(for: transcript.text) {
+                        hud.update(state: .routing, activeMode: preview)
+                    }
+                    result = try await modes.route(text: transcript.text, controller: self)
+                } catch let modeError as ModeError {
+                    // LM Studio fejlede — fallback til rå-transkription
+                    log.warning("Mode-routing fejlede, falder tilbage til rå-transkription")
+                    lastError = modeError.errorDescription
+                    result = RouteResult(text: modeError.fallbackText ?? transcript.text, mode: nil)
+                }
 
-                cursor.type(routed)
-
-                let modeId = routed != transcript.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    ? matchedModeId(for: transcript.text)
-                    : nil
+                cursor.type(result.text)
 
                 history.append(TranscriptEntry(
                     rawText: transcript.text,
-                    processedText: routed,
-                    modeId: modeId,
+                    processedText: result.text,
+                    modeId: result.mode?.id,
                     durationMs: transcript.durationMs,
                     inferenceMs: transcript.inferenceMs
                 ))
@@ -222,16 +230,6 @@ public final class SagaController: ObservableObject {
                 hud.show(error: error)
             }
         }
-    }
-
-    private func matchedModeId(for text: String) -> String? {
-        let lower = text.lowercased()
-        for mode in modes.modes where modes.enabled.contains(mode.id) {
-            for trigger in mode.triggers where lower.hasPrefix(trigger.lowercased()) {
-                return mode.id
-            }
-        }
-        return nil
     }
 }
 
