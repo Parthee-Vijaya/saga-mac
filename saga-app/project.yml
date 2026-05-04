@@ -54,6 +54,7 @@ targets:
         NSMicrophoneUsageDescription: "Saga bruger mikrofonen til at lytte når du holder Fn-tasten nede, så din tale kan transkriberes til tekst."
         NSAppleEventsUsageDescription: "Saga indsætter transkriberet tekst ved markøren via system-events."
         NSScreenCaptureUsageDescription: "Saga bruger skærmoptagelse til vision-mode, hvor den kan beskrive eller besvare spørgsmål om indholdet på skærmen."
+        NSSpeechRecognitionUsageDescription: "Saga bruger Apple's on-device speech recognition til at lytte efter wake-word ('Hej Saga'). Audio sendes ikke til Apple's cloud."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dk.parthee.saga

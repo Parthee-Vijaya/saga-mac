@@ -147,6 +147,32 @@ struct GeneralSettingsTab: View {
                 }
                 .toggleStyle(.switch)
             }
+            Section("Wake-word") {
+                Toggle(isOn: Binding(
+                    get: { controller.wakeWordEnabled },
+                    set: { controller.wakeWordEnabled = $0 }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Aktivér 'Hej Saga' wake-word")
+                            .font(.system(size: 13, weight: .medium))
+                        Text("Saga lytter altid på baggrunden via Apple's on-device speech recognition. Når du siger 'Hej Saga' starter optagelse automatisk i 6 sek. Default OFF — wake-word kræver konstant mic-adgang.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+                if controller.wakeWord.isListening {
+                    Text("● Lytter…")
+                        .font(.caption.monospaced())
+                        .foregroundColor(.green)
+                }
+                if let err = controller.wakeWord.lastError {
+                    Text(err)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
             Section("Push-to-talk-tast") {
                 Picker("Hotkey", selection: $hotkeyRaw) {
                     ForEach(Hotkey.allCases, id: \.rawValue) { key in

@@ -26,6 +26,7 @@ public final class SagaController: ObservableObject {
     public let reminders: ReminderEngine
     public let vision: ScreenVision
     public let documents: DocumentAnalyzer
+    public let wakeWord: WakeWordDetector
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -44,6 +45,20 @@ public final class SagaController: ObservableObject {
         }
     }
 
+    /// Wake-word-mode: continuous listening efter "Hej Saga". Default OFF
+    /// (mere indgribende end push-to-talk). Toggle via Settings → Wake-word.
+    @Published public var wakeWordEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(wakeWordEnabled, forKey: "wakeWordEnabled")
+            log.info("Wake-word: \(self.wakeWordEnabled ? "TIL" : "FRA", privacy: .public)")
+            applyWakeWordState()
+        }
+    }
+
+    /// Maks varighed af wake-word-trigget recording (sek). Efter triggering
+    /// optager vi i denne periode og auto-stopper.
+    @Published public var wakeWordRecordingDuration: TimeInterval = 6.0
+
     public init() {
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
@@ -57,7 +72,9 @@ public final class SagaController: ObservableObject {
         self.reminders = ReminderEngine()
         self.vision = ScreenVision()
         self.documents = DocumentAnalyzer()
+        self.wakeWord = WakeWordDetector()
         self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
+        self.wakeWordEnabled = UserDefaults.standard.bool(forKey: "wakeWordEnabled")
     }
 
     public var menuBarIconName: String {
@@ -90,9 +107,47 @@ public final class SagaController: ObservableObject {
         hotkeys.onHoldEnd = { [weak self] in self?.handleHoldEnd() }
         hotkeys.startListening()
 
+        // Wire wake-word callback
+        wakeWord.onWake = { [weak self] in self?.handleWakeWordTrigger() }
+        applyWakeWordState()
+
         // Auto-detect LM Studio på baggrunden — ikke-blocking
         Task { [weak self] in
             await self?.discoverLMStudio(autoConfigure: true)
+        }
+    }
+
+    private func applyWakeWordState() {
+        guard booted else { return }
+        if wakeWordEnabled {
+            Task { @MainActor in
+                let auth = await WakeWordDetector.requestAuthorization()
+                if auth == .authorized {
+                    wakeWord.start()
+                } else {
+                    lastError = "Speech recognition-permission mangler. Slå Wake-word fra eller granté i System Settings."
+                    self.wakeWordEnabled = false
+                }
+            }
+        } else {
+            wakeWord.stop()
+        }
+    }
+
+    private func handleWakeWordTrigger() {
+        // Wake-word fyrede — start optagelse som hvis brugeren havde holdt Fn,
+        // og auto-stop efter wakeWordRecordingDuration (eller hvis bruger holder
+        // Fn imens, lader vi den manuelle hold tage over).
+        guard state == .idle else { return }
+        log.info("Wake-word triggered → start recording")
+        handleHoldStart()
+        let duration = wakeWordRecordingDuration
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            // Hvis vi stadig er i recording-state efter timeout: stop
+            if state == .recording {
+                handleHoldEnd()
+            }
         }
     }
 
@@ -127,6 +182,7 @@ public final class SagaController: ObservableObject {
     public func shutdown() async {
         log.info("Saga lukker ned")
         hotkeys.stopListening()
+        wakeWord.stop()
         audio.stop()
         health.stop()
     }
@@ -189,6 +245,8 @@ public final class SagaController: ObservableObject {
             lastError = "ASR-modellen er stadig ved at indlæse. Vent på \"Klar\"-status."
             return
         }
+        // Pause wake-word så det ikke konkurrerer om mic-input
+        wakeWord.pauseForRecording()
         lastError = nil
         state = .recording
         hud.show()
@@ -224,6 +282,7 @@ public final class SagaController: ObservableObject {
                     ))
                     state = .idle
                     hud.dismiss()
+                    wakeWord.resumeAfterRecording()
                     return
                 }
 
@@ -254,11 +313,13 @@ public final class SagaController: ObservableObject {
 
                 state = .idle
                 hud.dismiss()
+                wakeWord.resumeAfterRecording()
             } catch {
                 log.error("Pipeline fejlede: \(error.localizedDescription)")
                 lastError = error.localizedDescription
                 state = .idle
                 hud.show(error: error)
+                wakeWord.resumeAfterRecording()
             }
         }
     }
