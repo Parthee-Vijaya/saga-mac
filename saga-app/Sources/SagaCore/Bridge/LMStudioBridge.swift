@@ -90,6 +90,55 @@ public final class LMStudioBridge: @unchecked Sendable {
         try await chat(system: system, user: user, temperature: temperature, maxTokens: maxTokens, internal: ())
     }
 
+    /// Multi-modal chat med ét billede (PNG-bytes). Bruges af VisionMode.
+    /// Antager LM Studio-modellen er vision-capable (llava, gemma-4-vision, etc.).
+    public func chatWithImage(
+        system: String,
+        userText: String,
+        imagePNG: Data,
+        temperature: Double = 0.3,
+        maxTokens: Int = 512
+    ) async throws -> String {
+        let (baseURL, model) = queue.sync { (_baseURL, _model) }
+        let url = baseURL.appendingPathComponent("chat/completions")
+
+        let base64 = imagePNG.base64EncodedString()
+        let dataURL = "data:image/png;base64,\(base64)"
+
+        let payload: [String: Any] = [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": system],
+                ["role": "user", "content": [
+                    ["type": "text", "text": userText],
+                    ["type": "image_url", "image_url": ["url": dataURL]],
+                ]],
+            ],
+            "temperature": temperature,
+            "max_tokens": maxTokens,
+            "stream": false,
+        ]
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        req.timeoutInterval = 120  // vision er langsommere
+
+        let (data, resp) = try await urlSession.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+            let body = String(data: data, encoding: .utf8) ?? "<binary>"
+            throw LMStudioError.serverError(status: status, body: body)
+        }
+
+        let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
+        guard let text = decoded.choices.first?.message.content else {
+            throw LMStudioError.emptyResponse
+        }
+        return text
+    }
+
     private func chat(
         system: String,
         user: String,
