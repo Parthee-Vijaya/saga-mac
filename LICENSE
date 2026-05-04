@@ -1,0 +1,12 @@
+Copyright (c) 2026 Parthee Vijaya
+
+All Rights Reserved — privat projekt til personlig brug.
+
+Saga afhænger af følgende eksterne komponenter med deres egne licenser:
+
+- Hviske v5.3 (syvai/hviske-v5.3): CC BY-NC 4.0 (ikke-kommerciel).
+  Saga distribueres ikke kommercielt og bundler ikke modellen — brugeren
+  henter den selv via Hugging Face.
+
+- PyTorch (BSD), Transformers (Apache 2.0), FastAPI (MIT), libsndfile (LGPL),
+  numpy (BSD), librosa (ISC), Sparkle (MIT).

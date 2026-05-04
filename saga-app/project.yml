@@ -1,0 +1,73 @@
+name: SagaApp
+options:
+  bundleIdPrefix: dk.parthee.saga
+  deploymentTarget:
+    macOS: "14.0"
+  developmentLanguage: da
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_HARDENED_RUNTIME: YES
+    OTHER_SWIFT_FLAGS: "-warnings-as-errors"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Saga:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/SagaApp
+      - path: Sources/SagaCore
+    resources:
+      - path: Resources
+        excludes:
+          - "Saga.entitlements"
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleName: Saga
+        CFBundleDisplayName: Saga
+        CFBundleIdentifier: dk.parthee.saga
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSUIElement: true
+        NSHighResolutionCapable: true
+        NSHumanReadableCopyright: "© 2026 Parthee Vijaya"
+        NSMicrophoneUsageDescription: "Saga bruger mikrofonen til at lytte når du holder Fn-tasten nede, så din tale kan transkriberes til tekst."
+        NSAppleEventsUsageDescription: "Saga indsætter transkriberet tekst ved markøren via system-events."
+        NSScreenCaptureUsageDescription: "Saga bruger skærmoptagelse til vision-mode, hvor den kan beskrive eller besvare spørgsmål om indholdet på skærmen."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dk.parthee.saga
+        PRODUCT_NAME: Saga
+        CODE_SIGN_ENTITLEMENTS: Resources/Saga.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: NO  # Sandbox blokerer CGEventTap-features vi har brug for
+        COMBINE_HIDPI_IMAGES: YES
+    scheme:
+      testTargets:
+        - SagaCoreTests
+      gatherCoverageData: true
+
+  SagaCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/SagaCoreTests
+    dependencies:
+      - target: Saga
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dk.parthee.saga.tests
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Saga.app/Contents/MacOS/Saga

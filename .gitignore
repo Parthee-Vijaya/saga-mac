@@ -1,0 +1,54 @@
+# Swift / Xcode
+.build/
+.swiftpm/
+# .xcodeproj genereres af xcodegen — kommitteres ikke
+*.xcodeproj/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcworkspace
+!*.xcworkspace/contents.xcworkspacedata
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.uv/
+uv.lock
+
+# Hviske model cache (4-8 GB — never commit)
+saga-sidecar/models/
+saga-sidecar/.cache/
+~/.cache/huggingface/
+
+# macOS
+.DS_Store
+*.swp
+
+# IDE
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+dist/
+*.dmg
+*.app/
+*.zip
+
+# Secrets
+.env
+.env.local
+*.p12
+*.cer
+*.mobileprovision
+*.entitlements.local
+
+# Logs
+*.log
+logs/
