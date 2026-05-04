@@ -127,9 +127,46 @@ LM Studio app fylder ~200 MB selv (separat installation fra `lmstudio.ai`).
 
 ## Installation (slutbrugere)
 
-Hent seneste DMG fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases) →
-træk Saga.app til Applications. Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin
-guide inkl. Gatekeeper-bypass og first-run wizard.
+### Hurtig download via terminal
+
+Repo'et er privat, så download kræver authentication. Vælg én af:
+
+**Med `gh` CLI** (anbefalet — håndterer auth automatisk):
+
+```bash
+brew install gh
+gh auth login
+gh release download v0.1.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
+open Saga-0.1.0.dmg
+```
+
+**Med `curl` + Personal Access Token:**
+
+```bash
+# Lav en GitHub PAT med 'repo'-scope: https://github.com/settings/tokens
+export GH_TOKEN="ghp_din_token_her"
+
+# Find asset-id'et
+ASSET_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.1.0" \
+  | grep '"id"' | head -2 | tail -1 | grep -oE '[0-9]+')
+
+# Hent DMG (følg redirect til S3)
+curl -L -o Saga-0.1.0.dmg \
+  -H "Authorization: token $GH_TOKEN" \
+  -H "Accept: application/octet-stream" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/assets/$ASSET_ID"
+
+open Saga-0.1.0.dmg
+```
+
+### Eller via browser
+
+Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.1.0) →
+træk Saga.app til Applications.
+
+Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin guide inkl. Gatekeeper-bypass og
+first-run wizard.
 
 ## Setup (udviklere)
 

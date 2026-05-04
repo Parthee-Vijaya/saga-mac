@@ -15,10 +15,47 @@ fungerer fuldt med pure dictation uden LM Studio.
 
 ## Trin 1 — Download + installér
 
-1. Hent seneste DMG fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases)
-2. Dobbeltklik `Saga-X.Y.Z.dmg` for at mounte
-3. Træk **Saga.app** over på **Applications**-genvejen i samme vindue
-4. Eject DMG'en (right-click → Eject)
+### Mulighed A — `gh` CLI (anbefalet)
+
+```bash
+brew install gh                 # kun første gang
+gh auth login                   # følg prompts (1 minut)
+gh release download v0.1.0 \
+  --repo Parthee-Vijaya/saga-mac \
+  --pattern "Saga-*.dmg"
+open Saga-0.1.0.dmg
+```
+
+### Mulighed B — curl + GitHub Personal Access Token
+
+```bash
+# 1. Generér PAT med 'repo'-scope: https://github.com/settings/tokens
+export GH_TOKEN="ghp_din_token_her"
+
+# 2. Find asset-id og download
+ASSET_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.1.0" \
+  | grep '"id"' | head -2 | tail -1 | grep -oE '[0-9]+')
+
+curl -L -o Saga-0.1.0.dmg \
+  -H "Authorization: token $GH_TOKEN" \
+  -H "Accept: application/octet-stream" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/assets/$ASSET_ID"
+
+open Saga-0.1.0.dmg
+```
+
+### Mulighed C — browser
+
+1. Gå til [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.1.0)
+2. Klik `Saga-0.1.0.dmg` for at downloade
+3. Dobbeltklik for at mounte
+
+### Installér
+
+1. DMG-vinduet viser **Saga.app** + **Applications**-genvej
+2. Træk **Saga.app** over på **Applications**-genvejen
+3. Eject DMG'en (right-click → Eject)
 
 ## Trin 2 — Første åbning (Gatekeeper)
 
