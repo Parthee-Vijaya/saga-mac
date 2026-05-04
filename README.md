@@ -1,10 +1,15 @@
 # Saga
 
-Mac-native voice assistant til dansk dictation og AI-modes — inspireret af Emma.
+Mac-native voice assistant til dansk dictation og AI-modes.
 
 **Hold `⌥` Højre Option → tal dansk → tekst indsættes ved cursor.**
 
-> **Status M0.G** (≈ M1 done) — pipeline virker end-to-end på Apple Silicon.
+> **LM Studio er IKKE nødvendig** for almindelig brug. Saga's dictation-funktion
+> (push-to-talk → dansk tekst ved cursor) kører fuldt lokalt på Apple Silicon.
+> LM Studio er kun en **valgfri tilføjelse** for AI-modes (oversæt, opsummer, formatér)
+> — disse kommer i M2 og er endnu ikke aktiveret.
+
+> **Status M8 done** — DMG-distribution klar.
 > Se [docs/ROADMAP.md](docs/ROADMAP.md) for hvad der er næste.
 
 ## Hvad virker lige nu (verificeret)
@@ -38,24 +43,41 @@ Mac-native voice assistant til dansk dictation og AI-modes — inspireret af Emm
 
 ```
 Saga.app (Swift 6, SwiftUI status bar)
-  ├─ AVAudioRecorder ────→ 16 kHz mono WAV
-  ├─ CanaryKit (CoreML) ─→ ANE-accelereret Conformer encoder + Cohere decoder
-  └─ LM Studio (HTTP) ──→ optionel mode-LLM (oversæt, formatér, etc.)
+  ├─ AVAudioRecorder ────→ 16 kHz mono WAV          ┐
+  ├─ CanaryKit (CoreML) ─→ ANE-accelereret ASR      ├─ Påkrævet (lokalt)
+  ├─ CursorInjector ────→ CGEvent unicode typing    ┘
+  └─ LM Studio (HTTP) ──→ valgfri mode-LLM           ─ Valgfri (kun til M2-modes)
 ```
 
-ASR kører fuldt **on-device** — ingen audio forlader maskinen. LM Studio er valgfri
-og kun nødvendig for modes (oversæt/formatér); pure dictation virker uden.
+ASR kører fuldt **on-device** — ingen audio forlader maskinen, ingen netværksforbindelse
+nødvendig. LM Studio er **kun valgfri** og bruges udelukkende hvis du vil have
+mode-routing (oversæt/opsummer/formatér).
 
 Se [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for moduldiagram + dataflow.
 
 ## Hardware-krav (Mac)
 
+### Til almindelig dictation (Saga alene — *ingen* LM Studio krævet)
+
 | | Minimum | Anbefalet |
 |---|---|---|
-| **Mac** | M1 (2020+) — kræver Apple Neural Engine for Canary-acceleration | M2 / M3 / M4 |
+| **Mac** | M1 (2020+) — kræver Apple Neural Engine | M2 / M3 / M4 |
 | **macOS** | 15.0 (Sequoia) | 26+ (Tahoe) |
-| **RAM** | 16 GB | 24-32 GB (LM Studio + Saga + browser samtidig) |
-| **Disk** | ~5 GB | ~20 GB (LM Studio-modeller fylder) |
+| **RAM** | 8 GB | 16 GB |
+| **Disk** | 2 GB ledig (Saga + Canary-modeller) | 5 GB |
+
+> ✅ Det er **alt** du behøver for at bruge Saga til dictation. Du behøver IKKE
+> installere LM Studio eller noget andet. Saga virker offline.
+
+### Hvis du senere vil have LM Studio mode-routing (M2 — kommer)
+
+| | Anbefalet |
+|---|---|
+| **RAM** | 24-32 GB (LM Studio + Saga + browser samtidig) |
+| **Disk** | +16 GB (gemma-4-26b) eller +5 GB (mindre modeller) |
+
+LM Studio er en separat tredjeparts-app. Saga finder den automatisk hvis den
+kører på localhost, men kræver intet for at virke.
 
 Intel-Macs er ikke supporterede — Canary-mlpackages er kompileret til Apple Silicon
 og falder tilbage til CPU på Intel, hvilket giver RTF ~5× (ubrugeligt live).
@@ -75,7 +97,10 @@ og falder tilbage til CPU på Intel, hvilket giver RTF ~5× (ubrugeligt live).
 
 Cold-start: 8-22 sek (CoreML JIT-kompilerer ANE-kerner). Warm-start: <1 sek.
 
-### LM Studio (LLM, valgfri til modes)
+### LM Studio (LLM, **valgfri** — kun til mode-routing i M2)
+
+LM Studio er **ikke** nødvendig for at bruge Saga. Hop til afsnittet om
+[Installation](#installation-slutbrugere) hvis du kun vil have dictation.
 
 Saga's default model (kan ændres i Settings):
 
@@ -96,8 +121,8 @@ LM Studio app fylder ~200 MB selv (separat installation fra `lmstudio.ai`).
 
 |  | Disk | RAM |
 |---|---|---|
-| **Saga + Canary alene** | 1.8 GB | 3.6 GB |
-| **+ LM Studio + gemma-4-26b** | 18 GB | 24 GB |
+| **Saga + Canary alene** (almindelig brug) | 1.8 GB | 3.6 GB |
+| + LM Studio + gemma-4-26b (kun hvis du vil have modes) | 18 GB | 24 GB |
 | **+ macOS + browsere kørende** | — | ~30 GB anbefalet |
 
 ## Installation (slutbrugere)
@@ -155,9 +180,12 @@ Test DMG'en på en frisk Mac vha. [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md).
 4. Klik status-bar-ikonet for live status, sidste 5 transkriptioner og indstillinger
 5. Cmd+Click historik-vinduet for søgning + kopier-til-clipboard
 
-## Modes (M2 — kommer)
+## Modes (M2 — kommer, valgfrit)
 
-I et fremtidigt release vil "trigger-ord" route output gennem LM Studio:
+> Modes kræver LM Studio. Hvis du kun bruger Saga til dictation, kan du springe
+> dette afsnit over.
+
+I et fremtidigt release vil "trigger-ord" route output gennem en lokal LM Studio:
 
 - "oversæt til engelsk: hej verden" → "Hello world"
 - "opsummer: [lang dansk tekst]" → 2-sætnings TL;DR
