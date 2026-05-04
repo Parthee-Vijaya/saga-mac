@@ -34,6 +34,16 @@ public final class SagaController: ObservableObject {
     @Published public private(set) var isDiscoveringLMStudio = false
     @Published public var showFirstRun: Bool = false
 
+    /// Stenograf-mode: ren dictation. Springer mode-routing, LM Studio,
+    /// reminders, vision og document-analysis over. Kun Canary → cursor.
+    /// Bruges når brugeren vil have minimal forsinkelse og ingen LLM-afhængighed.
+    @Published public var stenografMode: Bool {
+        didSet {
+            UserDefaults.standard.set(stenografMode, forKey: "stenografMode")
+            log.info("Stenograf-mode: \(self.stenografMode ? "TIL" : "FRA", privacy: .public)")
+        }
+    }
+
     public init() {
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
@@ -47,6 +57,7 @@ public final class SagaController: ObservableObject {
         self.reminders = ReminderEngine()
         self.vision = ScreenVision()
         self.documents = DocumentAnalyzer()
+        self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
     }
 
     public var menuBarIconName: String {
@@ -200,18 +211,32 @@ public final class SagaController: ObservableObject {
         Task { @MainActor in
             do {
                 let transcript = try await asr.transcribe(pcm: pcm, language: "da")
+
+                if stenografMode {
+                    // Stenograf-mode: skip alt mode-routing, gå direkte til cursor.
+                    cursor.type(transcript.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                    history.append(TranscriptEntry(
+                        rawText: transcript.text,
+                        processedText: transcript.text.trimmingCharacters(in: .whitespacesAndNewlines),
+                        modeId: nil,
+                        durationMs: transcript.durationMs,
+                        inferenceMs: transcript.inferenceMs
+                    ))
+                    state = .idle
+                    hud.dismiss()
+                    return
+                }
+
                 state = .routing
                 hud.update(state: .routing)
 
                 let result: RouteResult
                 do {
-                    // Først tjek hvilken mode (hvis nogen) for at sætte HUD-titel
                     if let preview = modes.previewMatch(for: transcript.text) {
                         hud.update(state: .routing, activeMode: preview)
                     }
                     result = try await modes.route(text: transcript.text, controller: self)
                 } catch let modeError as ModeError {
-                    // LM Studio fejlede — fallback til rå-transkription
                     log.warning("Mode-routing fejlede, falder tilbage til rå-transkription")
                     lastError = modeError.errorDescription
                     result = RouteResult(text: modeError.fallbackText ?? transcript.text, mode: nil)
