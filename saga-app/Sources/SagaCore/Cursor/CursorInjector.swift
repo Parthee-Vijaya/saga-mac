@@ -17,7 +17,7 @@ public final class CursorInjector {
     public func type(_ text: String) {
         guard !text.isEmpty else { return }
         let utf16 = Array(text.utf16)
-        log.debug("Indsætter \(utf16.count) UTF-16 chars")
+        log.info("Indsætter \(utf16.count, privacy: .public) UTF-16 chars: \"\(text.prefix(80), privacy: .public)\"")
 
         // CGEventKeyboardSetUnicodeString tager max 20 chars per event;
         // chunker for sikkerhed

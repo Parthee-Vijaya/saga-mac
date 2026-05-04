@@ -146,9 +146,9 @@ struct RecordingHUDView: View {
     private var subtitle: String {
         if let error = model.errorMessage { return error }
         switch model.state {  // swiftlint:disable:next switch_case_alignment
-        case .idle: return "Hold Fn for at tale"
-        case .recording: return "Slip Fn når du er færdig"
-        case .transcribing: return "Hviske kører"
+        case .idle: return "Hold ⌥ Højre Option for at tale"
+        case .recording: return "Slip ⌥ når du er færdig"
+        case .transcribing: return "Canary kører"
         case .routing: return "LM Studio formaterer svar"
         }
     }

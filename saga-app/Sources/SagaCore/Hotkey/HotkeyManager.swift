@@ -4,10 +4,14 @@ import CoreGraphics
 import Foundation
 import OSLog
 
-/// Lytter efter Fn-tast-hold. Bruger CGEventTap (kræver Accessibility-permission).
+/// Lytter efter en push-to-talk-tast og kalder onHoldStart/onHoldEnd.
+/// Bruger CGEventTap (kræver Accessibility-permission).
 ///
-/// På moderne Macs er Fn = "globe"-tasten (kCGEventFlagMaskSecondaryFn). Single-press er
-/// fri (Apple ændrede default-dictation til Fn-Fn double-tap), så hold-to-dictate er sikkert.
+/// Default er **Right Option** (`⌥` højre side af mellemrumstasten) — virker på
+/// alle keyboards inkl. Logitech MX Keys/MX Master, hvor Apples globe/Fn ikke fungerer.
+/// Apples `Fn` (kCGEventFlagMaskSecondaryFn) understøttes også som alternativ.
+/// User kan ændre via UserDefaults `hotkey` ("rightOption" | "leftOption" | "fn"
+/// | "rightCommand" | "rightControl").
 @MainActor
 public final class HotkeyManager {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "hotkey")
@@ -21,9 +25,17 @@ public final class HotkeyManager {
 
     public init() {}
 
+    public var hotkey: Hotkey {
+        get { Hotkey(rawValue: UserDefaults.standard.string(forKey: "hotkey") ?? "") ?? .rightOption }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "hotkey") }
+    }
+
+    private var retryTask: Task<Void, Never>?
+
     public func startListening() {
-        guard ensureAccessibility() else {
-            log.warning("Accessibility-permission mangler — hotkey er inaktiv indtil brugeren granter den")
+        if !ensureAccessibility() {
+            log.warning("Accessibility-permission mangler — venter på grant og prøver igen hvert 2. sekund")
+            scheduleRetry()
             return
         }
         guard eventTap == nil else { return }
@@ -49,10 +61,12 @@ public final class HotkeyManager {
 
         self.eventTap = tap
         self.runLoopSource = source
-        log.info("Hotkey-listener aktiv")
+        log.info("Hotkey-listener aktiv (key=\(self.hotkey.rawValue))")
     }
 
     public func stopListening() {
+        retryTask?.cancel()
+        retryTask = nil
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -64,14 +78,31 @@ public final class HotkeyManager {
         isHolding = false
     }
 
-    fileprivate func handleFlagsChanged(fnDown: Bool) {
-        if fnDown && !isHolding {
+    private func scheduleRetry() {
+        retryTask?.cancel()
+        retryTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard let self else { return }
+                if Task.isCancelled { return }
+                if AXIsProcessTrusted() {
+                    self.log.info("Accessibility nu granted — aktiverer hotkey")
+                    self.retryTask = nil
+                    self.startListening()
+                    return
+                }
+            }
+        }
+    }
+
+    fileprivate func handleHotkey(isDown: Bool) {
+        if isDown && !isHolding {
             isHolding = true
-            log.debug("Fn down → start recording")
+            log.info("hotkey DOWN — start recording")
             onHoldStart?()
-        } else if !fnDown && isHolding {
+        } else if !isDown && isHolding {
             isHolding = false
-            log.debug("Fn up → stop recording")
+            log.info("hotkey UP — stop recording")
             onHoldEnd?()
         }
     }
@@ -85,6 +116,46 @@ public final class HotkeyManager {
     }
 }
 
+public enum Hotkey: String, CaseIterable, Sendable {
+    case rightOption    // ⌥ højre — anbefalet, virker på alle keyboards
+    case leftOption     // ⌥ venstre
+    case rightCommand   // ⌘ højre
+    case rightControl   // ⌃ højre
+    case fn             // Apple's globe / Fn — virker IKKE på Logitech-keyboards
+
+    /// Key code som CGEvent reporterer i flagsChanged-events. nil = ingen specifik
+    /// keycode (Fn rapporteres via flag, ikke key code).
+    public var keyCode: Int64? {
+        switch self {
+        case .rightOption: return 61      // kVK_RightOption
+        case .leftOption: return 58       // kVK_Option
+        case .rightCommand: return 54     // kVK_RightCommand
+        case .rightControl: return 62     // kVK_RightControl
+        case .fn: return nil
+        }
+    }
+
+    /// Den modifier-mask der er sat når denne tast holdes nede.
+    public var flagMask: CGEventFlags {
+        switch self {
+        case .rightOption, .leftOption: return .maskAlternate
+        case .rightCommand: return .maskCommand
+        case .rightControl: return .maskControl
+        case .fn: return .maskSecondaryFn
+        }
+    }
+
+    public var displayName: String {
+        switch self {
+        case .rightOption: return "Højre Option (⌥)"
+        case .leftOption: return "Venstre Option (⌥)"
+        case .rightCommand: return "Højre Command (⌘)"
+        case .rightControl: return "Højre Control (⌃)"
+        case .fn: return "Fn / globe (kun Apple-keyboards)"
+        }
+    }
+}
+
 private func hotkeyTapCallback(
     proxy: CGEventTapProxy,
     type: CGEventType,
@@ -92,14 +163,43 @@ private func hotkeyTapCallback(
     refcon: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-        // Tap blev disabled (timeout / interrupt). Re-enabling sker fra runLoop-tråden.
         return Unmanaged.passUnretained(event)
     }
     guard let refcon else { return Unmanaged.passUnretained(event) }
     let manager = Unmanaged<HotkeyManager>.fromOpaque(refcon).takeUnretainedValue()
-    let fnDown = event.flags.contains(.maskSecondaryFn)
+
+    // Læs eventet OUTSIDE @MainActor (CGEvent er ikke Sendable)
+    let flags = event.flags
+    let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+    let flagsRaw = flags.rawValue
+
     Task { @MainActor in
-        manager.handleFlagsChanged(fnDown: fnDown)
+        let key = manager.hotkey
+        let maskHeld = flags.contains(key.flagMask)
+
+        // Diagnostic logging — info-level + public privacy så vi kan se værdier
+        let log = Logger(subsystem: "dk.parthee.saga", category: "hotkey")
+        let keyName: String
+        switch keyCode {
+        case 58: keyName = "LeftOption"
+        case 61: keyName = "RightOption"
+        case 54: keyName = "RightCmd"
+        case 55: keyName = "LeftCmd"
+        case 59: keyName = "LeftCtrl"
+        case 62: keyName = "RightCtrl"
+        case 56: keyName = "LeftShift"
+        case 60: keyName = "RightShift"
+        case 63: keyName = "Fn"
+        default: keyName = "kc\(keyCode)"
+        }
+        log.info("event: \(keyName, privacy: .public) (kc=\(keyCode, privacy: .public)) flags=0x\(String(flagsRaw, radix: 16), privacy: .public) maskHeld=\(maskHeld ? "yes" : "no", privacy: .public) expecting=\(key.keyCode?.description ?? "nil", privacy: .public)")
+
+        if let expectedKey = key.keyCode {
+            if keyCode != expectedKey { return }
+            manager.handleHotkey(isDown: maskHeld)
+        } else {
+            manager.handleHotkey(isDown: maskHeld)
+        }
     }
     return Unmanaged.passUnretained(event)
 }

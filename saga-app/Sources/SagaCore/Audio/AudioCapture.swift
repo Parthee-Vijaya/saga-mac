@@ -2,164 +2,130 @@
 import Foundation
 import OSLog
 
-/// Capture mono float32 audio fra default mic, resample til 16 kHz, returnér som PCM-buffer.
+/// Capture audio fra default mic via AVAudioRecorder.
 ///
-/// AVAudioEngine kalder vores tap-callback på en intern audio-tråd. Vi laver al konvertering
-/// dér og pusher samples ind i en lås-beskyttet bucket. ``stop()`` henter bucket'en på MainActor.
+/// Skiftet fra AVAudioEngine i M0.E — AVAudioEngine + Bluetooth mic (AirPods)
+/// gav konsistent 0 samples på trods af korrekt input-format. AVAudioRecorder
+/// er højere-niveau og virker pålideligt på alle input-devices (Built-in,
+/// Bluetooth, USB).
+///
+/// Recorder skriver til en temp .caf-fil ved 16 kHz mono PCM. Ved stop()
+/// læses filen ind via soundfile-lignende decode og returneres som
+/// `CapturedAudio` (samme interface som før).
 @MainActor
 public final class AudioCapture {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "audio")
 
-    private let engine = AVAudioEngine()
-    private let bucket = SampleBucket()
-    private var converter: AVAudioConverter?
-    private var inputFormat: AVAudioFormat?
-    private let outputFormat: AVAudioFormat
-    private var isRunning = false
+    private var recorder: AVAudioRecorder?
+    private var tempURL: URL?
+    private let outputSampleRate: Int = 16_000
 
-    public init() {
-        self.outputFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 16_000,
-            channels: 1,
-            interleaved: false
-        )!
-    }
+    public init() {}
 
     public func start() {
-        guard !isRunning else { return }
-        bucket.reset()
-
-        let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        inputFormat = format
-
-        log.debug("Input format: sr=\(format.sampleRate) ch=\(format.channelCount)")
-
-        if format.sampleRate != outputFormat.sampleRate || format.channelCount != outputFormat.channelCount {
-            converter = AVAudioConverter(from: format, to: outputFormat)
-        } else {
-            converter = nil
+        if recorder?.isRecording == true {
+            log.warning("start() kaldt mens recording allerede kører — ignorer")
+            return
         }
 
-        let bucket = self.bucket
-        let converter = self.converter
-        let outputFormat = self.outputFormat
-
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
-            Self.process(
-                buffer: buffer,
-                converter: converter,
-                outputFormat: outputFormat,
-                bucket: bucket
-            )
-        }
+        let url = makeTempURL()
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatLinearPCM),
+            AVSampleRateKey: 16_000,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+        ]
 
         do {
-            engine.prepare()
-            try engine.start()
-            isRunning = true
-            log.info("Audio-engine startet")
+            let rec = try AVAudioRecorder(url: url, settings: settings)
+            rec.isMeteringEnabled = true
+            guard rec.prepareToRecord() else {
+                log.error("AVAudioRecorder.prepareToRecord returnerede false")
+                return
+            }
+            guard rec.record() else {
+                log.error("AVAudioRecorder.record returnerede false")
+                return
+            }
+            self.recorder = rec
+            self.tempURL = url
+            log.info("Recorder startet → \(url.lastPathComponent, privacy: .public)")
         } catch {
-            log.error("Engine.start fejlede: \(error.localizedDescription)")
+            log.error("AVAudioRecorder.init fejlede: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     @discardableResult
     public func stop() -> CapturedAudio {
-        guard isRunning else {
-            return CapturedAudio(samples: [], sampleRate: Int(outputFormat.sampleRate))
+        guard let rec = recorder, let url = tempURL else {
+            return CapturedAudio(samples: [], sampleRate: outputSampleRate)
         }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
-        isRunning = false
+        rec.stop()
+        let dur = rec.currentTime
+        recorder = nil
+        tempURL = nil
+        log.info("Recorder stoppet — \(dur, privacy: .public) sek (rec.currentTime)")
 
-        let samples = bucket.drain()
-        log.info("Audio-engine stoppet — \(samples.count) samples (\(Double(samples.count) / 16_000.0) sek)")
-        return CapturedAudio(samples: samples, sampleRate: Int(outputFormat.sampleRate))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        do {
+            let samples = try readWavSamples(at: url, sampleRate: self.outputSampleRate)
+            let secs = Double(samples.count) / Double(self.outputSampleRate)
+            log.info("Læste \(samples.count, privacy: .public) samples (\(secs, privacy: .public) sek)")
+            return CapturedAudio(samples: samples, sampleRate: self.outputSampleRate)
+        } catch {
+            log.error("Kunne ikke læse audio-fil: \(error.localizedDescription, privacy: .public)")
+            return CapturedAudio(samples: [], sampleRate: outputSampleRate)
+        }
     }
 
-    nonisolated private static func process(
-        buffer: AVAudioPCMBuffer,
-        converter: AVAudioConverter?,
-        outputFormat: AVAudioFormat,
-        bucket: SampleBucket
-    ) {
-        let resampled: AVAudioPCMBuffer
-        if let converter, let inputFormat = converter.inputFormat as AVAudioFormat? {
-            let ratio = outputFormat.sampleRate / inputFormat.sampleRate
-            let outCapacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio + 32)
-            guard let outBuf = AVAudioPCMBuffer(
-                pcmFormat: outputFormat,
-                frameCapacity: outCapacity
-            ) else { return }
+    private func makeTempURL() -> URL {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("saga-rec-\(UUID().uuidString).wav")
+        return tmp
+    }
 
-            let feeder = BufferFeeder(buffer: buffer)
-            var error: NSError?
-            converter.convert(to: outBuf, error: &error) { _, statusPtr in
-                feeder.next(statusPtr)
+    /// Læs en 16-bit PCM WAV-fil og konverter til float32 [-1, 1].
+    /// Antager mono og target sample-rate (filen er allerede skrevet i det format).
+    private func readWavSamples(at url: URL, sampleRate: Int) throws -> [Float] {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let frameCount = AVAudioFrameCount(file.length)
+
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            throw NSError(domain: "Saga", code: 1, userInfo: [NSLocalizedDescriptionKey: "PCMBuffer-allokering fejlede"])
+        }
+        try file.read(into: buffer)
+
+        let actualFrames = Int(buffer.frameLength)
+        guard let channelData = buffer.floatChannelData else {
+            throw NSError(domain: "Saga", code: 2, userInfo: [NSLocalizedDescriptionKey: "Audio-fil har ikke float channel-data"])
+        }
+
+        let mono = UnsafeBufferPointer(start: channelData[0], count: actualFrames)
+        var samples = Array(mono)
+
+        // AVAudioFile.processingFormat kan have anden sample-rate end target.
+        // Hvis ikke 16 kHz, lav simpel linear resample (kvalitet er nok for ASR).
+        if Int(format.sampleRate) != sampleRate {
+            let inputSr = Int(format.sampleRate)
+            let ratio = Double(sampleRate) / Double(inputSr)
+            let outLen = Int(Double(samples.count) * ratio)
+            var out = [Float](repeating: 0, count: outLen)
+            for i in 0..<outLen {
+                let srcIdx = Double(i) / ratio
+                let lo = Int(srcIdx.rounded(.down))
+                let hi = min(lo + 1, samples.count - 1)
+                let frac = Float(srcIdx - Double(lo))
+                out[i] = samples[lo] * (1 - frac) + samples[hi] * frac
             }
-            if error != nil {
-                return
-            }
-            resampled = outBuf
-        } else {
-            resampled = buffer
+            samples = out
         }
 
-        guard let channelData = resampled.floatChannelData else { return }
-        let frames = Int(resampled.frameLength)
-        let mono = UnsafeBufferPointer(start: channelData[0], count: frames)
-        bucket.append(Array(mono))
-    }
-}
-
-/// Tråd-sikker samples-bucket. ``append`` kaldes fra audio-thread, ``drain`` fra MainActor.
-final class SampleBucket: @unchecked Sendable {
-    private var samples: [Float] = []
-    private let lock = NSLock()
-
-    func append(_ chunk: [Float]) {
-        lock.lock()
-        samples.append(contentsOf: chunk)
-        lock.unlock()
-    }
-
-    func drain() -> [Float] {
-        lock.lock()
-        let out = samples
-        samples = []
-        lock.unlock()
-        return out
-    }
-
-    func reset() {
-        lock.lock()
-        samples = []
-        lock.unlock()
-    }
-}
-
-/// AVAudioConverter callback-feeder der kun returnerer buffer'en én gang.
-final class BufferFeeder: @unchecked Sendable {
-    private let buffer: AVAudioPCMBuffer
-    private var fed = false
-    private let lock = NSLock()
-
-    init(buffer: AVAudioPCMBuffer) {
-        self.buffer = buffer
-    }
-
-    func next(_ statusPtr: UnsafeMutablePointer<AVAudioConverterInputStatus>) -> AVAudioBuffer? {
-        lock.lock()
-        defer { lock.unlock() }
-        if fed {
-            statusPtr.pointee = .noDataNow
-            return nil
-        }
-        fed = true
-        statusPtr.pointee = .haveData
-        return buffer
+        return samples
     }
 }
 
@@ -169,7 +135,7 @@ public struct CapturedAudio: Sendable {
 
     public var duration: Double { Double(samples.count) / Double(sampleRate) }
 
-    /// Pak til lille-endian 16-bit PCM bytes. Hviske-sidecar dekoder dette via "pcm16"-encoding.
+    /// Pak til lille-endian 16-bit PCM bytes.
     public var pcm16Data: Data {
         var data = Data(capacity: samples.count * 2)
         for sample in samples {

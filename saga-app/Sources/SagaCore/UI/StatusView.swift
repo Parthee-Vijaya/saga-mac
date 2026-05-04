@@ -41,10 +41,10 @@ public struct StatusView: View {
             }
             Spacer()
             if controller.state == .idle {
-                Image(systemName: "command")
+                Image(systemName: "option")
                     .font(.system(size: 9))
                     .foregroundColor(.secondary.opacity(0.6))
-                Text("Hold Fn for at tale")
+                Text("Hold ⌥ for at tale")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
