@@ -10,6 +10,9 @@ options:
 packages:
   CanaryKit:
     path: ../../canary-coreml/swift
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 
 settings:
   base:
@@ -32,6 +35,8 @@ targets:
     dependencies:
       - package: CanaryKit
         product: CanaryKit
+      - package: Sparkle
+        product: Sparkle
     resources:
       - path: Resources
         excludes:
@@ -55,6 +60,13 @@ targets:
         NSAppleEventsUsageDescription: "Saga indsætter transkriberet tekst ved markøren via system-events."
         NSScreenCaptureUsageDescription: "Saga bruger skærmoptagelse til vision-mode, hvor den kan beskrive eller besvare spørgsmål om indholdet på skærmen."
         NSSpeechRecognitionUsageDescription: "Saga bruger Apple's on-device speech recognition til at lytte efter wake-word ('Hej Saga'). Audio sendes ikke til Apple's cloud."
+        # Sparkle auto-update — opdatér efter EdDSA-keypair er genereret + appcast er hostet.
+        # Generér public key via: ./Tools/generate_keys (kommer med Sparkle-CLI)
+        # Se docs/RELEASE.md for fuld setup-guide.
+        SUFeedURL: "https://parthee-vijaya.github.io/saga-mac/appcast.xml"
+        SUPublicEDKey: "REPLACE_WITH_BASE64_PUBLIC_KEY_FROM_generate_keys"
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dk.parthee.saga

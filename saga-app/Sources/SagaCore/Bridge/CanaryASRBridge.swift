@@ -118,7 +118,14 @@ public final class CanaryASRBridge: @unchecked Sendable {
             return bundled
         }
 
-        // 2. Env-override (test/CI)
+        // 2. Slim-DMG path: ~/Library/Application Support/Saga/Models/mlpackage/
+        //    Skrevet af ModelDownloader når brugeren har downloaded modellen.
+        let appSupport = ModelStorage.modelsDirectory
+        if FileManager.default.fileExists(atPath: appSupport.appendingPathComponent("CanaryEncoder.mlpackage").path) {
+            return appSupport
+        }
+
+        // 3. Env-override (test/CI)
         if let envPath = ProcessInfo.processInfo.environment["SAGA_CANARY_MODELS_DIR"] {
             let url = URL(fileURLWithPath: envPath)
             if FileManager.default.fileExists(atPath: url.appendingPathComponent("CanaryEncoder.mlpackage").path) {
@@ -126,7 +133,7 @@ public final class CanaryASRBridge: @unchecked Sendable {
             }
         }
 
-        // 3. Dev-fallback: ../../canary-coreml/models/mlpackage relativt til exec
+        // 4. Dev-fallback: ../../canary-coreml/models/mlpackage relativt til exec
         let exec = Bundle.main.executableURL ?? URL(fileURLWithPath: ".")
         let devCandidate = exec
             .deletingLastPathComponent()
@@ -138,7 +145,7 @@ public final class CanaryASRBridge: @unchecked Sendable {
             return devCandidate
         }
 
-        // 4. Hardcoded dev-fallback til Parthee's setup
+        // 5. Hardcoded dev-fallback til Parthee's setup
         let homeFallback = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Desktop/Claude/projekter/canary-coreml/models/mlpackage")
         if FileManager.default.fileExists(atPath: homeFallback.appendingPathComponent("CanaryEncoder.mlpackage").path) {

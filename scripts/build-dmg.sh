@@ -47,8 +47,12 @@ echo
 bold "[1/8] Pre-flight"
 [[ -d "/Applications/Xcode.app" ]] || fail "Xcode.app mangler i /Applications. Installer fra App Store."
 command -v xcodegen >/dev/null || fail "xcodegen mangler. Kør: brew install xcodegen"
-[[ -d "${MLPACKAGE_DIR}" ]] || fail "mlpackage mangler: ${MLPACKAGE_DIR}. Kør canary-coreml/python pipelinen."
-ok "Xcode, xcodegen, mlpackage OK"
+if [[ "${SAGA_SLIM:-0}" == "1" ]]; then
+  ok "Xcode + xcodegen OK · slim-DMG mode (mlpackages downloades on-demand)"
+else
+  [[ -d "${MLPACKAGE_DIR}" ]] || fail "mlpackage mangler: ${MLPACKAGE_DIR}. Kør canary-coreml/python pipelinen, eller sæt SAGA_SLIM=1 for slim-DMG."
+  ok "Xcode, xcodegen, mlpackage OK"
+fi
 
 # Generate xcodeproj
 bold "[2/8] Generér Xcode-projekt"
@@ -72,19 +76,24 @@ APP_BUILT="${BUILD_DIR}/Build/Products/Release/Saga.app"
 [[ -d "${APP_BUILT}" ]] || fail "Saga.app blev ikke bygget"
 ok "Bygget: ${APP_BUILT}"
 
-# Bundle mlpackages
-bold "[4/8] Bundle Canary mlpackages → Saga.app/Contents/Resources/mlpackage/"
-BUNDLE_DEST="${APP_BUILT}/Contents/Resources/mlpackage"
-mkdir -p "${BUNDLE_DEST}"
-for pkg in CanaryEncoder.mlpackage CanaryDecoderLM.mlpackage CanaryPreprocessor.mlpackage; do
-  src="${MLPACKAGE_DIR}/${pkg}"
-  if [[ -d "${src}" ]]; then
-    cp -R "${src}" "${BUNDLE_DEST}/"
-    info "${pkg} ($(du -sh "${src}" | cut -f1))"
-  else
-    warn "${pkg} mangler i ${MLPACKAGE_DIR}"
-  fi
-done
+# Bundle mlpackages (med mindre vi er i slim-DMG-mode)
+if [[ "${SAGA_SLIM:-0}" == "1" ]]; then
+  bold "[4/8] Slim-DMG: skipper mlpackage-bundling"
+  ok "App vil downloade modeller ved første launch (~1.8 GB)"
+else
+  bold "[4/8] Bundle Canary mlpackages → Saga.app/Contents/Resources/mlpackage/"
+  BUNDLE_DEST="${APP_BUILT}/Contents/Resources/mlpackage"
+  mkdir -p "${BUNDLE_DEST}"
+  for pkg in CanaryEncoder.mlpackage CanaryDecoderLM.mlpackage CanaryPreprocessor.mlpackage; do
+    src="${MLPACKAGE_DIR}/${pkg}"
+    if [[ -d "${src}" ]]; then
+      cp -R "${src}" "${BUNDLE_DEST}/"
+      info "${pkg} ($(du -sh "${src}" | cut -f1))"
+    else
+      warn "${pkg} mangler i ${MLPACKAGE_DIR}"
+    fi
+  done
+fi
 APP_SIZE=$(du -sh "${APP_BUILT}" | cut -f1)
 ok "Total Saga.app: ${APP_SIZE}"
 
