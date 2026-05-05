@@ -330,13 +330,17 @@ public final class SagaController: ObservableObject {
         lastError = nil
 
         // Edit-mode: hvis Shift var nede ved hotkey-tryk, snapshot den markerede
-        // tekst NU (før recording-flow snupper fokus). Hvis ingen markering, vis
-        // en kort fejlbesked så brugeren ved hvorfor det fall'ede tilbage.
+        // tekst NU (før recording-flow snupper fokus). Først via AX-API (hurtig,
+        // ren). Hvis det fejler — typisk i Electron-apps som Claude/Slack/VSCode
+        // som ikke eksponerer kAXSelectedText — falder vi tilbage til Cmd+C-trick.
         pendingEditSelection = nil
         if forceEdit {
             if let selection = selectionReader.currentSelection() {
                 pendingEditSelection = selection
-                log.info("Edit-mode aktiv — markeret tekst: \(selection.count) chars")
+                log.info("Edit-mode aktiv (AX-path) — markeret tekst: \(selection.count) chars")
+            } else if let selection = selectionReader.currentSelectionViaClipboard() {
+                pendingEditSelection = selection
+                log.info("Edit-mode aktiv (clipboard-path) — markeret tekst: \(selection.count) chars")
             } else {
                 log.info("Edit-mode anmodet men ingen markering — falder til normal dictation")
                 lastError = "Markér tekst først. ⇧+⌥ uden markering = normal dictation."
