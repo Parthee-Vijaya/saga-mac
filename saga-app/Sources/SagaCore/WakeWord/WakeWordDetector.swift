@@ -132,14 +132,29 @@ public final class WakeWordDetector: ObservableObject {
 
     private func handleResult(result: SFSpeechRecognitionResult?, error: Error?) {
         if let error = error as NSError? {
-            // Recognition-fejl — re-start listener efter kort delay
             log.warning("Recognition fejl: \(error.localizedDescription, privacy: .public)")
             stop()
-            // Auto-restart hvis det ikke var en cancelation
-            if error.code != 203 && error.code != 1 {  // 203/1 = cancelled
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    if !pausedForRecording { self.start() }
+
+            let msg = error.localizedDescription.lowercased()
+            // Fundamentale fejl — auto-disable + vis klar besked. Ingen retry-loop.
+            if msg.contains("siri and dictation are disabled") || msg.contains("siri or dictation") {
+                lastError = "Wake-word kræver at Siri eller Dictation er enabled i System Settings → Apple Intelligence & Siri (eller Keyboard → Dictation)."
+                log.error("Wake-word disabled: bruger skal enable Dictation/Siri")
+                return
+            }
+            if msg.contains("not authorized") || msg.contains("not permitted") {
+                lastError = "Speech recognition-permission er trukket tilbage. Granté igen i Settings."
+                return
+            }
+            // Cancelled — bare stop, ingen retry
+            if error.code == 203 || error.code == 1 {
+                return
+            }
+            // Andre fejl — én restart-forsøg efter 2 sek
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if !pausedForRecording && !isListening {
+                    self.start()
                 }
             }
             return
