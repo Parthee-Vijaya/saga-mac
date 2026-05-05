@@ -40,15 +40,19 @@ public final class WakeWordDetector: ObservableObject {
         }
     }
 
-    public static func requestAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
-        await withCheckedContinuation { cont in
+    /// `nonisolated` — uden dette arves @MainActor fra class og Swift-runtime
+    /// crasher når TCC's callback (på TCC-queue) prøver at resume continuation
+    /// gennem isolated executor-check (`swift_task_isCurrentExecutorWithFlagsImpl`).
+    /// Continuation-mekanik håndterer selv thread-hop tilbage til caller.
+    public nonisolated static func requestAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { (cont: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
             SFSpeechRecognizer.requestAuthorization { status in
                 cont.resume(returning: status)
             }
         }
     }
 
-    public func currentAuthorization() -> SFSpeechRecognizerAuthorizationStatus {
+    public nonisolated func currentAuthorization() -> SFSpeechRecognizerAuthorizationStatus {
         SFSpeechRecognizer.authorizationStatus()
     }
 
