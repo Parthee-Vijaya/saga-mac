@@ -41,6 +41,11 @@ public final class SagaController: ObservableObject {
     /// Nulstilles efter hver recording (success OR error path).
     private var pendingEditSelection: String?
 
+    /// PID på den app der var frontmost ved edit-mode start. Bruges til at
+    /// re-aktivere appen FØR paste'en — så indsætning lander det rigtige sted
+    /// selv hvis brugeren klikkede væk mens LM Studio tænkte.
+    private var pendingEditTargetPID: pid_t?
+
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
     @Published public private(set) var booted = false
@@ -334,16 +339,23 @@ public final class SagaController: ObservableObject {
         // ren). Hvis det fejler — typisk i Electron-apps som Claude/Slack/VSCode
         // som ikke eksponerer kAXSelectedText — falder vi tilbage til Cmd+C-trick.
         pendingEditSelection = nil
+        pendingEditTargetPID = nil
         if forceEdit {
+            // Husk hvilken app der var frontmost — vi bringer den tilbage før
+            // paste'en, så indsætning lander det rigtige sted selv hvis brugeren
+            // klikker væk mens LM Studio tænker.
+            pendingEditTargetPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
             if let selection = selectionReader.currentSelection() {
                 pendingEditSelection = selection
-                log.info("Edit-mode aktiv (AX-path) — markeret tekst: \(selection.count) chars")
+                log.info("Edit-mode aktiv (AX-path) — markeret tekst: \(selection.count) chars, target pid=\(self.pendingEditTargetPID ?? -1)")
             } else if let selection = selectionReader.currentSelectionViaClipboard() {
                 pendingEditSelection = selection
-                log.info("Edit-mode aktiv (clipboard-path) — markeret tekst: \(selection.count) chars")
+                log.info("Edit-mode aktiv (clipboard-path) — markeret tekst: \(selection.count) chars, target pid=\(self.pendingEditTargetPID ?? -1)")
             } else {
                 log.info("Edit-mode anmodet men ingen markering — falder til normal dictation")
                 lastError = "Markér tekst først. ⇧+⌥ uden markering = normal dictation."
+                pendingEditTargetPID = nil
             }
         }
 
@@ -381,10 +393,12 @@ public final class SagaController: ObservableObject {
             return
         }
 
-        // Snapshot edit-selection før Task hopper til background — den nulstilles
+        // Snapshot edit-state før Task hopper til background — den nulstilles
         // straks så næste recording starter ren.
         let editSelection = pendingEditSelection
+        let editTargetPID = pendingEditTargetPID
         pendingEditSelection = nil
+        pendingEditTargetPID = nil
 
         // Hent per-app profil for frontmost app (snapshot taken før recording stop
         // for at undgå at fokus-skift under recording skifter profil mid-flow).
@@ -407,13 +421,23 @@ public final class SagaController: ObservableObject {
                 if let selection = editSelection {
                     let instruction = correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     log.info("Edit-mode kører — selection \(selection.count) chars, instruktion \"\(instruction.prefix(60), privacy: .public)\"")
+                    // Skift HUD til "thinking" så brugeren ved Saga arbejder.
+                    // EditMode.run kan tage 30-60s på en lokal 26B-model — uden
+                    // synlig progress kommer brugeren naturligt til at klikke væk.
+                    state = .routing
+                    let editMarker = Mode(id: "edit", title: "Redigerer…", triggers: [], systemPrompt: "")
+                    hud.update(state: .routing, activeMode: editMarker)
                     do {
                         let edited = try await EditMode.run(
                             selection: selection,
                             instruction: instruction,
                             controller: self
                         )
-                        cursor.type(edited)
+                        // Paste i stedet for unicode-keyboard-injection — pålidelig
+                        // i Electron-apps der opsluger CGEvent-unicode events.
+                        // Bring target-app forrest så fokus er korrekt selv hvis
+                        // brugeren klikkede væk mens LLM tænkte.
+                        cursor.paste(edited, restoringFocusToPID: editTargetPID)
                         history.append(TranscriptEntry(
                             rawText: transcript.text,
                             processedText: edited,
