@@ -129,8 +129,11 @@ struct LMStudioDiscoverySection: View {
                     ForEach(controller.discoveredEndpoints) { endpoint in
                         Button {
                             baseURL = endpoint.baseURL.absoluteString
-                            if let firstModel = endpoint.models.first {
-                                model = firstModel
+                            // Bevar nuværende model hvis det er på det nye endpoint;
+                            // ellers fald til første model. Forhindrer at endpoint-
+                            // skift overstyrer brugerens model-valg.
+                            if !endpoint.models.contains(model) {
+                                model = endpoint.models.first ?? model
                             }
                         } label: {
                             HStack(spacing: 8) {
@@ -166,6 +169,46 @@ struct LMStudioDiscoverySection: View {
                 }
                 .foregroundColor(.orange)
                 .padding(.vertical, 6)
+            }
+
+            // Model-picker: vis alle modeller fra det aktive endpoint som
+            // klikbare rækker, så brugeren hurtigt kan skifte mellem fx
+            // nemotron-3-nano (hurtig), gpt-oss-20b (mellem), gemma-4-26b (stor).
+            if let activeEndpoint = controller.discoveredEndpoints.first(where: {
+                $0.baseURL.absoluteString == baseURL
+            }), activeEndpoint.models.count > 1 {
+                Divider().padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Vælg model")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    ForEach(activeEndpoint.models, id: \.self) { modelName in
+                        Button {
+                            model = modelName
+                            controller.lmStudio.configure(
+                                baseURL: activeEndpoint.baseURL,
+                                model: modelName
+                            )
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: model == modelName ? "largecircle.fill.circle" : "circle")
+                                    .foregroundColor(.accentColor)
+                                Text(modelName)
+                                    .font(.caption.monospaced())
+                                Spacer()
+                            }
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(model == modelName
+                                          ? Color.accentColor.opacity(0.08)
+                                          : Color.clear)
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
 
             Divider().padding(.vertical, 4)
