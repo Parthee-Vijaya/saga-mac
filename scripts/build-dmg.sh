@@ -105,6 +105,36 @@ fi
 # Verify signing
 codesign -dv --verbose=2 "${APP_BUILT}" 2>&1 | grep -E "Authority|Signature|Identifier" | head -5
 
+# Optional: notarize the app before staging the DMG.
+# Set SAGA_NOTARIZE=1 along with the three credentials below to opt in.
+# Skipped silently otherwise so local development builds keep working.
+if [[ "${SAGA_NOTARIZE:-0}" == "1" ]]; then
+  bold "[5b/8] Notarisering af Saga.app"
+  : "${SAGA_NOTARY_APPLE_ID:?SAGA_NOTARY_APPLE_ID skal sættes når SAGA_NOTARIZE=1}"
+  : "${SAGA_NOTARY_TEAM_ID:?SAGA_NOTARY_TEAM_ID skal sættes når SAGA_NOTARIZE=1}"
+  : "${SAGA_NOTARY_PASSWORD:?SAGA_NOTARY_PASSWORD skal sættes når SAGA_NOTARIZE=1}"
+
+  NOTARY_ZIP="${BUILD_DIR}/Saga-notarize.zip"
+  rm -f "${NOTARY_ZIP}"
+  /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${APP_BUILT}" "${NOTARY_ZIP}"
+  info "Zip klar til upload ($(du -sh "${NOTARY_ZIP}" | cut -f1))"
+
+  xcrun notarytool submit "${NOTARY_ZIP}" \
+    --apple-id "${SAGA_NOTARY_APPLE_ID}" \
+    --team-id "${SAGA_NOTARY_TEAM_ID}" \
+    --password "${SAGA_NOTARY_PASSWORD}" \
+    --wait \
+    --timeout 30m \
+    || fail "notarytool submit fejlede — tjek log via: xcrun notarytool log <submission-id>"
+
+  xcrun stapler staple "${APP_BUILT}" || fail "stapler staple fejlede"
+  xcrun stapler validate "${APP_BUILT}" >/dev/null || fail "stapler validate fejlede"
+  rm -f "${NOTARY_ZIP}"
+  ok "Notariseret + stapled"
+else
+  warn "Springer notarisering over (sæt SAGA_NOTARIZE=1 for distribution)"
+fi
+
 # Stage DMG content
 bold "[6/8] Stage DMG-content"
 rm -rf "${DMG_TMP}"
@@ -158,9 +188,27 @@ ok "DMG bygget: ${DMG_SIZE}"
 # Cleanup staging
 rm -rf "${DMG_TMP}"
 
+# Staple notarization ticket onto the DMG itself so Gatekeeper accepts the
+# download without an internet round-trip on the user's first launch.
+if [[ "${SAGA_NOTARIZE:-0}" == "1" ]]; then
+  bold "[7b/8] Stapler ticket på DMG"
+  xcrun notarytool submit "${DMG_PATH}" \
+    --apple-id "${SAGA_NOTARY_APPLE_ID}" \
+    --team-id "${SAGA_NOTARY_TEAM_ID}" \
+    --password "${SAGA_NOTARY_PASSWORD}" \
+    --wait \
+    --timeout 30m \
+    || fail "DMG-notarisering fejlede"
+  xcrun stapler staple "${DMG_PATH}" || fail "DMG stapler staple fejlede"
+  ok "DMG notariseret + stapled"
+fi
+
 # Final verification
 bold "[8/8] Verifikation"
 hdiutil verify "${DMG_PATH}" 2>&1 | tail -2 | head -1
+if [[ "${SAGA_NOTARIZE:-0}" == "1" ]]; then
+  spctl -a -t open --context context:primary-signature "${DMG_PATH}" 2>&1 | head -3 || true
+fi
 ok "Klar: ${DMG_PATH}"
 
 echo
