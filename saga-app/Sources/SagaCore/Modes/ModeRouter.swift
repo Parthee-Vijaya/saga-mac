@@ -9,6 +9,7 @@ public final class ModeRouter: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "modes")
     private let disabledStorageKey = "modeRouter.disabled"
     private let customStorageKey = "modeRouter.custom"
+    private let selectionReader = SelectionReader()
 
     /// Custom modes oprettet af brugeren. Persisteret som JSON i UserDefaults.
     @Published public private(set) var custom: [Mode] = []
@@ -44,6 +45,12 @@ public final class ModeRouter: ObservableObject {
         }
         if VisionMode.matches(trimmed).matched {
             return Mode(id: "vision", title: "Vision", triggers: VisionMode.triggers, systemPrompt: "")
+        }
+        // EditMode preview kræver kun trigger-match. Faktisk aktivering tjekker
+        // også at der findes en selection — men her ved preview ved vi ikke om
+        // brugeren har markeret noget endnu på tale-tidspunktet.
+        if EditMode.matches(trimmed).matched {
+            return Mode(id: "edit", title: "Edit", triggers: EditMode.triggers, systemPrompt: "")
         }
         return matchMode(in: trimmed)?.mode
     }
@@ -86,6 +93,27 @@ public final class ModeRouter: ObservableObject {
             do {
                 let description = try await VisionMode.run(payload: visionMatch.payload, controller: controller)
                 return RouteResult(text: description, mode: marker)
+            } catch {
+                throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+            }
+        }
+
+        // Edit-mode er special-cased — kræver markeret tekst i frontmost app.
+        // Hvis trigger matches men selection er tom, falder vi tilbage til
+        // normal mode-routing for at undgå at sende tom payload til LLM.
+        let editMatch = EditMode.matches(trimmed)
+        if editMatch.matched, let selection = selectionReader.currentSelection() {
+            log.info("Match: edit, instruction=\(editMatch.instruction.prefix(80))")
+            let marker = Mode(id: "edit", title: "Edit", triggers: EditMode.triggers, systemPrompt: "")
+            activeMode = marker
+            defer { activeMode = nil }
+            do {
+                let edited = try await EditMode.run(
+                    selection: selection,
+                    instruction: editMatch.instruction,
+                    controller: controller
+                )
+                return RouteResult(text: edited, mode: marker)
             } catch {
                 throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
             }
