@@ -21,6 +21,8 @@ public struct SettingsView: View {
                 .tabItem { Label("Apps", systemImage: "app.badge") }
             CompanionSettingsTab()
                 .tabItem { Label("Companion", systemImage: "bubble.left.and.bubble.right") }
+            VocabularySettingsTab()
+                .tabItem { Label("Ordforråd", systemImage: "text.book.closed") }
             RemindersSettingsTab()
                 .tabItem { Label("Reminders", systemImage: "bell") }
             AboutTab()

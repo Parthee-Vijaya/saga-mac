@@ -44,6 +44,40 @@ struct VoiceSettingsTab: View {
                 }
 
                 SettingsCard(
+                    "Auto-stop ved stilhed (VAD)",
+                    footer: "Når aktiv stopper Saga optagelse automatisk efter et stykke stilhed — du behøver ikke holde hotkey hele tiden. Energi-baseret detection, kører lokalt."
+                ) {
+                    SettingsRow(
+                        "Aktivér auto-stop",
+                        subtitle: "Slut at holde hotkey nede. Slip når du er færdig — eller bare lad være med at sige mere."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.vadAutoStopEnabled },
+                            set: { controller.vadAutoStopEnabled = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+                    if controller.vadAutoStopEnabled {
+                        Divider().padding(.vertical, 4)
+                        SettingsRow(
+                            "Stilheds-tærskel",
+                            subtitle: "\(String(format: "%.1f", controller.vadSilenceDuration))s — hvor længe du skal være stille før Saga stopper."
+                        ) {
+                            Slider(
+                                value: Binding(
+                                    get: { controller.vadSilenceDuration },
+                                    set: { controller.vadSilenceDuration = $0 }
+                                ),
+                                in: 0.5...3.0,
+                                step: 0.1
+                            )
+                            .frame(width: 180)
+                        }
+                    }
+                }
+
+                SettingsCard(
                     "LM Studio",
                     footer: "Bruges til mode-routing (oversæt, opsummer osv.). Pure dictation virker uden."
                 ) {
