@@ -34,6 +34,12 @@ public final class SagaController: ObservableObject {
     public let appProfiles: AppProfileStore
     public let vocabulary: VocabularyStore
     private let vocabularyProcessor = VocabularyPostProcessor()
+    private let selectionReader = SelectionReader()
+
+    /// Sat ved hold-start hvis brugeren holdt Shift+hotkey OG har markeret tekst.
+    /// Når != nil ved hold-end: kør EditMode.run direkte i stedet for mode-routing.
+    /// Nulstilles efter hver recording (success OR error path).
+    private var pendingEditSelection: String?
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -136,7 +142,7 @@ public final class SagaController: ObservableObject {
         }
 
         // Aktivér hotkey-listening
-        hotkeys.onHoldStart = { [weak self] in self?.handleHoldStart() }
+        hotkeys.onHoldStart = { [weak self] shiftHeld in self?.handleHoldStart(forceEdit: shiftHeld) }
         hotkeys.onHoldEnd = { [weak self] in self?.handleHoldEnd() }
         hotkeys.startListening()
 
@@ -312,7 +318,7 @@ public final class SagaController: ObservableObject {
 
     // MARK: - Recording lifecycle
 
-    private func handleHoldStart() {
+    private func handleHoldStart(forceEdit: Bool = false) {
         guard state == .idle else { return }
         guard asr.isReady else {
             log.warning("ASR ikke klar — ignorer hotkey")
@@ -322,6 +328,21 @@ public final class SagaController: ObservableObject {
         // Pause wake-word så det ikke konkurrerer om mic-input
         wakeWord.pauseForRecording()
         lastError = nil
+
+        // Edit-mode: hvis Shift var nede ved hotkey-tryk, snapshot den markerede
+        // tekst NU (før recording-flow snupper fokus). Hvis ingen markering, vis
+        // en kort fejlbesked så brugeren ved hvorfor det fall'ede tilbage.
+        pendingEditSelection = nil
+        if forceEdit {
+            if let selection = selectionReader.currentSelection() {
+                pendingEditSelection = selection
+                log.info("Edit-mode aktiv — markeret tekst: \(selection.count) chars")
+            } else {
+                log.info("Edit-mode anmodet men ingen markering — falder til normal dictation")
+                lastError = "Markér tekst først. ⇧+⌥ uden markering = normal dictation."
+            }
+        }
+
         state = .recording
         hud.show()
 
@@ -350,10 +371,16 @@ public final class SagaController: ObservableObject {
         let pcm = audio.stop()
         guard pcm.duration > 0.3 else {
             log.info("Optagelse for kort (\(pcm.duration)s) — ignorer")
+            pendingEditSelection = nil
             state = .idle
             hud.dismiss()
             return
         }
+
+        // Snapshot edit-selection før Task hopper til background — den nulstilles
+        // straks så næste recording starter ren.
+        let editSelection = pendingEditSelection
+        pendingEditSelection = nil
 
         // Hent per-app profil for frontmost app (snapshot taken før recording stop
         // for at undgå at fokus-skift under recording skifter profil mid-flow).
@@ -370,6 +397,36 @@ public final class SagaController: ObservableObject {
                     transcript.text,
                     entries: vocabulary.activeEntries
                 )
+
+                // Forced edit-mode: brugeren holdt Shift+hotkey OG havde markering.
+                // Skip ALT mode-routing og send selection+instruktion direkte til LLM.
+                if let selection = editSelection {
+                    let instruction = correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    log.info("Edit-mode kører — selection \(selection.count) chars, instruktion \"\(instruction.prefix(60), privacy: .public)\"")
+                    do {
+                        let edited = try await EditMode.run(
+                            selection: selection,
+                            instruction: instruction,
+                            controller: self
+                        )
+                        cursor.type(edited)
+                        history.append(TranscriptEntry(
+                            rawText: transcript.text,
+                            processedText: edited,
+                            modeId: "edit",
+                            durationMs: transcript.durationMs,
+                            inferenceMs: transcript.inferenceMs
+                        ))
+                    } catch {
+                        log.warning("EditMode fejlede: \(error.localizedDescription, privacy: .public) — skriver instruktion som rå dictation")
+                        lastError = "Edit fejlede: \(error.localizedDescription)"
+                        cursor.type(instruction)
+                    }
+                    state = .idle
+                    hud.dismiss()
+                    wakeWord.resumeAfterRecording()
+                    return
+                }
 
                 // Effektiv stenograf: profil har højere prioritet end global setting.
                 let effectiveStenograf = profile?.stenografOverride ?? stenografMode

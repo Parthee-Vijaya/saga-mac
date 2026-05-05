@@ -16,7 +16,9 @@ import OSLog
 public final class HotkeyManager {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "hotkey")
 
-    public var onHoldStart: (() -> Void)?
+    /// Kaldes når hotkey DOWN. Bool = om Shift også blev holdt nede ved start —
+    /// bruges til at trigge voice-edit-mode (Shift+⌥) i stedet for normal dictation.
+    public var onHoldStart: ((Bool) -> Void)?
     public var onHoldEnd: (() -> Void)?
 
     private var eventTap: CFMachPort?
@@ -95,11 +97,11 @@ public final class HotkeyManager {
         }
     }
 
-    fileprivate func handleHotkey(isDown: Bool) {
+    fileprivate func handleHotkey(isDown: Bool, shiftHeld: Bool) {
         if isDown && !isHolding {
             isHolding = true
-            log.info("hotkey DOWN — start recording")
-            onHoldStart?()
+            log.info("hotkey DOWN — start recording (shift=\(shiftHeld ? "yes" : "no", privacy: .public))")
+            onHoldStart?(shiftHeld)
         } else if !isDown && isHolding {
             isHolding = false
             log.info("hotkey UP — stop recording")
@@ -176,6 +178,7 @@ private func hotkeyTapCallback(
     Task { @MainActor in
         let key = manager.hotkey
         let maskHeld = flags.contains(key.flagMask)
+        let shiftHeld = flags.contains(.maskShift)
 
         // Diagnostic logging — info-level + public privacy så vi kan se værdier
         let log = Logger(subsystem: "dk.parthee.saga", category: "hotkey")
@@ -196,9 +199,9 @@ private func hotkeyTapCallback(
 
         if let expectedKey = key.keyCode {
             if keyCode != expectedKey { return }
-            manager.handleHotkey(isDown: maskHeld)
+            manager.handleHotkey(isDown: maskHeld, shiftHeld: shiftHeld)
         } else {
-            manager.handleHotkey(isDown: maskHeld)
+            manager.handleHotkey(isDown: maskHeld, shiftHeld: shiftHeld)
         }
     }
     return Unmanaged.passUnretained(event)
