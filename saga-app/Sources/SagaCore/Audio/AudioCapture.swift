@@ -25,7 +25,25 @@ public final class AudioCapture: ObservableObject {
     @Published public private(set) var levelHistory: [Float] = Array(repeating: 0, count: 48)
     private var levelTask: Task<Void, Never>?
 
+    // VAD auto-stop — opt-in. Sættes via `enableVAD(config:onSilence:)` før start().
+    private var vad: (any VADDetector)?
+    private var onVADSilence: (@MainActor () -> Void)?
+
     public init() {}
+
+    /// Aktivér VAD-baseret auto-stop for næste recording. Skal kaldes før `start()`.
+    /// `onSilence` kaldes præcis én gang når brugeren har været stille
+    /// `config.silenceDuration` i træk efter `config.minRecordingDuration`.
+    public func enableVAD(config: VADConfig, onSilence: @escaping @MainActor () -> Void) {
+        self.vad = EnergyVAD(config: config)
+        self.onVADSilence = onSilence
+    }
+
+    /// Slå VAD fra. Recording stopper kun via eksplicit `stop()`-kald.
+    public func disableVAD() {
+        self.vad = nil
+        self.onVADSilence = nil
+    }
 
     public func start() {
         if recorder?.isRecording == true {
@@ -65,6 +83,10 @@ public final class AudioCapture: ObservableObject {
     }
 
     private func startLevelPolling() {
+        // Reset VAD-state ved hver ny recording så timeren starter forfra.
+        if vad != nil {
+            vad?.reset()
+        }
         levelTask?.cancel()
         levelTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -75,6 +97,18 @@ public final class AudioCapture: ObservableObject {
                     // Normaliser: -50 dB = 0, -10 dB = ~0.8, 0 dB = 1
                     let normalized = max(0, min(1, (avg + 50) / 45))
                     self.appendLevel(normalized)
+
+                    // VAD-tjek — feeder normaliseret level og fyrer onSilence
+                    // præcis én gang når silence-tærsklen krydses.
+                    if var detector = self.vad {
+                        let event = detector.process(level: normalized, timestamp: Date())
+                        self.vad = detector
+                        if event == .silenceTimeout {
+                            self.log.info("VAD: silence-timeout → auto-stop")
+                            self.onVADSilence?()
+                            return
+                        }
+                    }
                 } else {
                     return
                 }
