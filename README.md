@@ -4,40 +4,49 @@ Mac-native voice assistant til dansk dictation og AI-modes.
 
 **Hold `⌥` Højre Option → tal dansk → tekst indsættes ved cursor.**
 
+> 🇬🇧 [Read in English](README.en.md)
+
 > **LM Studio er IKKE nødvendig** for almindelig brug. Saga's dictation-funktion
 > (push-to-talk → dansk tekst ved cursor) kører fuldt lokalt på Apple Silicon.
-> LM Studio er kun en **valgfri tilføjelse** for AI-modes (oversæt, opsummer, formatér)
-> — disse kommer i M2 og er endnu ikke aktiveret.
+> LM Studio er kun en **valgfri tilføjelse** for AI-modes (oversæt, opsummer, formatér).
 
-> **Status M8 done** — DMG-distribution klar.
-> Se [docs/ROADMAP.md](docs/ROADMAP.md) for hvad der er næste.
+> **Status**: M0–M6 + M8 merged. To releases ude (v0.1.0, v0.2.0). M7 (integrations) bevidst sprunget over. Se [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Hvad virker lige nu (verificeret)
 
-- ✅ Hold-til-tal hotkey (Højre Option, virker på Apple-keyboard og Logitech MX-serien)
+- ✅ Hold-til-tal hotkey (Højre Option, eller leftOption/rightCommand/rightControl/fn — konfigurerbar)
 - ✅ Audio capture via AVAudioRecorder — robust på Built-in mic, AirPods, USB
 - ✅ Live waveform-HUD med tidstæller under recording
 - ✅ Dansk speech-to-text via NVIDIA Canary-1b-v2 (CoreML/ANE) — RTF ~0.14 efter warmup
 - ✅ Tekst inserted ved cursor i hvilken som helst app (TextEdit, Notes, browser, terminal/Claude Code, Slack, …)
 - ✅ Status-bar app med live health-status, transkriberings-historik og søgning
 - ✅ Persistent transkript-historik (`~/Library/Application Support/Saga/history.json`, max 100 entries)
+- ✅ LM Studio modes: oversæt, format, opsummer, vibe-code, LinkedIn (M2)
+- ✅ Voice reminders via "mind mig om …" / "remind me to …" (M3)
+- ✅ Wake word "Hej Saga" (M3.B, slukket som default)
+- ✅ Vision-mode "hvad ser jeg" (M4)
+- ✅ Document analysis af PDF/DOCX/RTF/TXT med severity-grupperede findings (M5)
+- ✅ Stenograf-mode der bypasser al routing (M6.0)
+- ✅ Custom modes editor i Settings (M6)
+- ✅ DMG-distribution + first-run wizard (M8)
 - ✅ Stabil Apple Development signing — TCC-permissions overlever rebuilds
 
-## Hvad der mangler (roadmap)
+## Roadmap-status
 
 | Fase | Beskrivelse | Status |
 |---|---|---|
 | **M0** | Scaffold + grund-arkitektur | ✅ done |
 | **M0.D** | Pivot ASR til Canary CoreML (Hviske droppet) | ✅ done |
-| **M0.E-G** | AVAudioRecorder + Apple-keyboard fix + waveform-HUD | ✅ done |
-| **M2** | LM Studio modes (oversæt/format/opsummer/vibecode/LinkedIn) | ⚪ next |
-| **M3** | "Hey Saga" wake-word + voice-reminders | ⚪ |
-| **M4** | Vision (skærm-analyse via multi-modal LLM) | ⚪ |
-| **M5** | Document analysis (PDF/DOCX flagging af binding-perioder etc.) | ⚪ |
-| **M6** | Custom modes editor i Settings | ⚪ |
-| **M7** | Integrations (n8n/Make/Apple Kalender/Sheets) | ⚪ |
-| **M8** | Distribution (DMG, notarization, Sparkle auto-update) | ⚪ |
-| **Sideprojekt** | hviske-coreml — Hviske → CoreML for bedre dansk-WER | ⚪ ~10 dage |
+| **M0.E–G** | AVAudioRecorder + Apple-keyboard fix + waveform-HUD | ✅ done |
+| **M1** | End-to-end dictation pipeline | ✅ done |
+| **M2** | LM Studio modes (oversæt/format/opsummer/vibecode/LinkedIn) | ✅ done |
+| **M3** | "Hej Saga" wake-word + voice-reminders | ✅ done |
+| **M4** | Vision (skærm-analyse via multi-modal LLM) | ✅ done |
+| **M5** | Document analysis (PDF/DOCX flagging af klausuler) | ✅ done |
+| **M6** | Custom modes editor + Stenograf-mode | ✅ done |
+| **M7** | Integrations (n8n/Make/Apple Kalender/Sheets) | ⏸ skipped |
+| **M8** | Distribution (DMG + setup wizard + LM Studio auto-detect) | ✅ done |
+| **Næste** | Notarisering, auto-update (Sparkle), VAD, voice-edit, multi-sprog | 🛠 in progress |
 
 ## Arkitektur
 
@@ -257,12 +266,12 @@ Test DMG'en på en frisk Mac vha. [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md).
 4. Klik status-bar-ikonet for live status, sidste 5 transkriptioner og indstillinger
 5. Cmd+Click historik-vinduet for søgning + kopier-til-clipboard
 
-## Modes (M2 — kommer, valgfrit)
+## Modes (M2, valgfrit — kræver LM Studio)
 
 > Modes kræver LM Studio. Hvis du kun bruger Saga til dictation, kan du springe
 > dette afsnit over.
 
-I et fremtidigt release vil "trigger-ord" route output gennem en lokal LM Studio:
+Trigger-ord router output gennem din lokale LM Studio-instans:
 
 - "oversæt til engelsk: hej verden" → "Hello world"
 - "opsummer: [lang dansk tekst]" → 2-sætnings TL;DR
@@ -276,9 +285,13 @@ I et fremtidigt release vil "trigger-ord" route output gennem en lokal LM Studio
 - Transkripter gemmes lokalt (kan slettes via "Ryd alt"-knap i historik)
 - Hvis LM Studio er konfigureret: kun mode-prompts sendes til localhost:1234
 
+## Bidrag
+
+Saga er offentligt for transparens og feedback. Se [CONTRIBUTING.md](CONTRIBUTING.md) for build-flow, kodestil og PR-proces. Sikkerhedshul: se [SECURITY.md](SECURITY.md). Adfærdskodeks: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
 ## Licenser
 
-- **Saga**: privat projekt, personlig brug.
+- **Saga**: se [LICENSE](LICENSE). Pt. "All Rights Reserved" — formel open source-licens er endnu ikke valgt. Repo er offentligt for transparens.
 - **Canary-1b-v2** (NVIDIA): CC BY 4.0 — fri commercial brug med attribution.
   CoreML-konvertering ligger i [canary-coreml-repo](https://github.com/Parthee-Vijaya/canary-coreml).
 - **CanaryKit** (Swift Package i canary-coreml): MIT.
@@ -286,4 +299,4 @@ I et fremtidigt release vil "trigger-ord" route output gennem en lokal LM Studio
 
 ## Repo
 
-Privat: https://github.com/Parthee-Vijaya/saga-mac
+https://github.com/Parthee-Vijaya/saga-mac
