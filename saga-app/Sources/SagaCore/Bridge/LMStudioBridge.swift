@@ -178,6 +178,131 @@ public final class LMStudioBridge: @unchecked Sendable {
         }
         return text
     }
+
+    /// Streaming chat med multi-turn message-history. Bruges af Companion-mode
+    /// så TTS kan starte ved første sætning i stedet for at vente på fuldt svar.
+    ///
+    /// Yielder content-deltas fra OpenAI-kompatibel SSE response. Hvis serveren
+    /// ikke understøtter streaming (returnerer non-SSE), falder vi tilbage til
+    /// non-streaming `chat`-vejen og yielder den komplette respons som ét chunk.
+    public func chatStream(
+        messages: [CompanionMessage],
+        temperature: Double = 0.4,
+        maxTokens: Int = 1024
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+                do {
+                    try await self.runChatStream(
+                        messages: messages,
+                        temperature: temperature,
+                        maxTokens: maxTokens,
+                        continuation: continuation
+                    )
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private func runChatStream(
+        messages: [CompanionMessage],
+        temperature: Double,
+        maxTokens: Int,
+        continuation: AsyncThrowingStream<String, Error>.Continuation
+    ) async throws {
+        let (baseURL, model) = queue.sync { (_baseURL, _model) }
+        let url = baseURL.appendingPathComponent("chat/completions")
+
+        let openAIMessages = messages.map { msg -> [String: Any] in
+            // Multi-modal hvis screenshot er vedhæftet (kun user-messages)
+            if msg.role == .user, let png = msg.screenshotPNG {
+                let base64 = png.base64EncodedString()
+                let dataURL = "data:image/png;base64,\(base64)"
+                return [
+                    "role": msg.role.rawValue,
+                    "content": [
+                        ["type": "text", "text": msg.content],
+                        ["type": "image_url", "image_url": ["url": dataURL]],
+                    ],
+                ]
+            }
+            return ["role": msg.role.rawValue, "content": msg.content]
+        }
+
+        let payload: [String: Any] = [
+            "model": model,
+            "messages": openAIMessages,
+            "temperature": temperature,
+            "max_tokens": maxTokens,
+            "stream": true,
+        ]
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        req.timeoutInterval = 120
+
+        let (bytes, resp) = try await urlSession.bytes(for: req)
+        guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+            throw LMStudioError.serverError(status: status, body: "stream-init fejlede")
+        }
+
+        let contentType = (http.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
+        // Hvis serveren ignorerer stream=true og returnerer JSON (ikke SSE),
+        // saml hele body og parse som non-streaming response.
+        if !contentType.contains("event-stream") {
+            log.warning("Server returnerede ikke SSE — falder til non-streaming")
+            var data = Data()
+            for try await byte in bytes {
+                if Task.isCancelled { return }
+                data.append(byte)
+            }
+            let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
+            if let text = decoded.choices.first?.message.content, !text.isEmpty {
+                continuation.yield(text)
+            }
+            return
+        }
+
+        // SSE-flow — line-by-line parsing
+        for try await line in bytes.lines {
+            if Task.isCancelled { return }
+
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("data:") else { continue }
+            let payloadStr = String(trimmed.dropFirst("data:".count))
+                .trimmingCharacters(in: .whitespaces)
+
+            if payloadStr == "[DONE]" {
+                return
+            }
+            guard !payloadStr.isEmpty,
+                  let data = payloadStr.data(using: .utf8) else { continue }
+
+            do {
+                let chunk = try JSONDecoder().decode(StreamChunk.self, from: data)
+                if let delta = chunk.choices.first?.delta?.content, !delta.isEmpty {
+                    continuation.yield(delta)
+                }
+            } catch {
+                // Tolerér enkelte mal-formede chunks — log men afbryd ikke
+                log.debug("SSE-chunk-decode fejlede: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
 }
 
 struct LMStudioModels: Codable {
@@ -211,6 +336,16 @@ private struct ChatResponse: Codable {
         let message: Message
         struct Message: Codable {
             let content: String
+        }
+    }
+}
+
+private struct StreamChunk: Codable {
+    let choices: [Choice]
+    struct Choice: Codable {
+        let delta: Delta?
+        struct Delta: Codable {
+            let content: String?
         }
     }
 }
