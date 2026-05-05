@@ -2,6 +2,18 @@
 
 > Dette dokument er en samlet briefing til Claude Code (eller mennesket) på den maskine hvor Xcode + `canary-coreml` faktisk kører. Læs det fra top til bund før du gør noget. Det dækker: hvad der er lavet, hvad der **ikke** er testet, hvad du skal verificere først, og i hvilken rækkefølge ting bør merges.
 
+## Til Claude Code (ny session)
+
+Hvis du er Claude Code på en frisk session og brugeren har givet dig dette dokument:
+
+- **Du har ALL den kontekst du behøver** i dette dokument. Spørg ikke "hvad er status?" eller "hvad er der lavet?" — det står her.
+- **Den forrige session var på en anden maskine uden Xcode**, så al koden er skrevet uden compile-verifikation. Antag at compile-fejl kan opstå.
+- **Følg "Execution playbook"-sektionen lineært** fra §0 til §13. Hver sektion har eksplicitte STOP-checkpoints hvis noget fejler.
+- **Brug TaskCreate til at tracke playbook-progressen** — én task per §-sektion er en god granularitet.
+- **Auto mode er ikke nødvendigt** — sig til brugeren ved hver merge-checkpoint så de kan godkende eller stoppe.
+- Brugerens repo ligger sandsynligvis i `~/Projects/saga-mac` (verificér med `pwd` + `git remote -v`).
+- Hvis et trin kræver brugerens manuelle input (fx tilladelse til mikrofon i System Settings) — bed brugeren udføre det og rapportér resultatet før du fortsætter.
+
 ## TL;DR
 
 10 PR'er er åbne på GitHub. **Ingen af dem er nogensinde compiled** — alt er skrevet på en CLI-maskine uden Xcode. Saga's projekt-config er `SWIFT_STRICT_CONCURRENCY=complete` og `-warnings-as-errors`, så compile-risiko er reel.
@@ -818,7 +830,7 @@ Kør sektionen "Build-verifikation pr. branch" → fix → "Manuelle smoke-tests
 
 ## Kontakt-info
 
-Repo: https://github.com/Parthee-Vijaya/people-Vijaya/saga-mac (verificér URL)
+Repo: https://github.com/Parthee-Vijaya/saga-mac
 
 PR'er åbne: https://github.com/Parthee-Vijaya/saga-mac/pulls
 
