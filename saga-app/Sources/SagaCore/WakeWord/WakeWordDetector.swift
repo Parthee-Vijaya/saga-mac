@@ -1,7 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 import OSLog
-import Speech
+@preconcurrency import Speech
 
 /// Continuous on-device wake-word-detection. Bruger SFSpeechRecognizer med
 /// `requiresOnDeviceRecognition = true` (macOS 13+) så ingen audio sendes til
@@ -15,7 +15,10 @@ public final class WakeWordDetector: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "wake-word")
 
     /// Frasen(er) Saga lytter efter. Hver match-test er case-insensitive substring.
-    public var phrases: [String] = ["hej saga", "hey saga", "okay saga"]
+    /// Default: bare "saga" (kort + naturligt). "hej saga"/"hey saga" matches også
+    /// pga. substring-test. Risiko for false positives hvis bruger taler om "saga"
+    /// i andre sammenhænge — overvej at vælge mere distinkt frase i Settings senere.
+    public var phrases: [String] = ["saga"]
 
     @Published public private(set) var isListening: Bool = false
     @Published public private(set) var lastError: String?
@@ -80,8 +83,14 @@ public final class WakeWordDetector: ObservableObject {
         }
 
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak request] buffer, _ in
-            request?.append(buffer)
+        // installTap-callback fyrer på AVAudioEngine's audio render thread, ikke
+        // MainActor. Uden @Sendable arver closure'en @MainActor fra class og
+        // Swift-runtime crasher i swift_task_isCurrentExecutorWithFlagsImpl.
+        // SFSpeechAudioBufferRecognitionRequest.append er thread-safe per Apple's
+        // docs, så det er sikkert at kalde fra audio thread.
+        nonisolated(unsafe) let weakRequest = request
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { @Sendable [weak weakRequest] buffer, _ in
+            weakRequest?.append(buffer)
         }
 
         do {
