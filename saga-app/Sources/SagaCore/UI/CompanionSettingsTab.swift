@@ -18,6 +18,33 @@ struct CompanionSettingsTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 SettingsCard(
+                    "Companion-mode",
+                    footer: "Når aktiv overtager Companion wake-word-trigger ('Hej Saga'). Push-to-talk dictation er upåvirket."
+                ) {
+                    SettingsRow(
+                        "Aktivér Companion",
+                        subtitle: "Sig 'Hej Saga' for at starte en voice-conversation. Saga ser skærmen og svarer via TTS. Kræver wake-word også er slået til."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.companion.enabled },
+                            set: { controller.companion.enabled = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+                    if controller.companion.enabled, !controller.wakeWordEnabled {
+                        Divider().padding(.vertical, 4)
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Wake-word er slået fra. Slå det til i Stemme-tabben.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
+                }
+
+                SettingsCard(
                     "Stemme (Text-to-Speech)",
                     footer: "Saga skal kunne tale tilbage i Companion-mode. Apple er offline; ElevenLabs er cloud-baseret med højere kvalitet."
                 ) {

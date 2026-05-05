@@ -28,6 +28,7 @@ public final class SagaController: ObservableObject {
     public let documents: DocumentAnalyzer
     public let wakeWord: WakeWordDetector
     public let tts: TTSCoordinator
+    public let companion: CompanionController
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -75,6 +76,7 @@ public final class SagaController: ObservableObject {
         self.documents = DocumentAnalyzer()
         self.wakeWord = WakeWordDetector()
         self.tts = TTSCoordinator()
+        self.companion = CompanionController()
         self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
         self.wakeWordEnabled = UserDefaults.standard.bool(forKey: "wakeWordEnabled")
     }
@@ -109,8 +111,20 @@ public final class SagaController: ObservableObject {
         hotkeys.onHoldEnd = { [weak self] in self?.handleHoldEnd() }
         hotkeys.startListening()
 
-        // Wire wake-word callback
-        wakeWord.onWake = { [weak self] in self?.handleWakeWordTrigger() }
+        // Wire Companion til denne controller — den deler audio, asr, lmStudio, tts, vision.
+        companion.attach(saga: self)
+
+        // Wire wake-word callback med routing-branch:
+        // - Hvis Companion er aktiveret i Settings → start voice-conversation
+        // - Ellers → eksisterende dictation-flow (kort timeout, type-at-cursor)
+        wakeWord.onWake = { [weak self] in
+            guard let self else { return }
+            if self.companion.enabled {
+                self.companion.startSession()
+            } else {
+                self.handleWakeWordTrigger()
+            }
+        }
         applyWakeWordState()
 
         // Auto-detect LM Studio på baggrunden — ikke-blocking
