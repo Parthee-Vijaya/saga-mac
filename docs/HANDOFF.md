@@ -6,7 +6,441 @@
 
 10 PR'er er åbne på GitHub. **Ingen af dem er nogensinde compiled** — alt er skrevet på en CLI-maskine uden Xcode. Saga's projekt-config er `SWIFT_STRICT_CONCURRENCY=complete` og `-warnings-as-errors`, så compile-risiko er reel.
 
-**Før du gør noget:** byg `feature/d5-per-app-profiles` (toppen af stakken) og fix compile-fejl før du merger nogetsomhelst til main.
+**Følg playbook'en herunder. Spring ikke trin over.**
+
+---
+
+## ▶ Execution playbook (compile → test → merge i rækkefølge)
+
+Det her er den prescriptive sekvens. Kør sektion for sektion oppefra. Hver section ender enten med en merge eller en checkpoint.
+
+### Section 0 — Pre-flight (5 min)
+
+```bash
+# 0.1 Verificér søsterprojekt
+ls ~/Projects/canary-coreml/swift/Package.swift
+ls ~/Projects/canary-coreml/models/mlpackage/CanaryEncoder.mlpackage
+# Hvis mangler: clone + kør konvertering, se README
+
+# 0.2 Hent alt fra remote
+cd ~/Projects/saga-mac
+git fetch origin --all --prune
+
+# 0.3 Verificér 11 branches er synlige (10 PR-branches + handoff)
+git branch -r | grep "feature/\|docs/handoff" | wc -l
+# → skal vise mindst 11
+
+# 0.4 Hvis du vil have CI: push den lokale workflow-branch
+gh auth refresh -h github.com -s workflow
+git push -u origin feature/sprint-a-public-ready 2>/dev/null || true
+```
+
+✅ **Section 0 done når:** canary-coreml findes som søsterprojekt og alle remote-branches er synlige.
+
+---
+
+### Section 1 — Compile-verifikation på toppen af stakken (15-30 min)
+
+Mål: bevis at hele D-stakken kan bygge. Hvis D5 bygger, bygger alt under også.
+
+```bash
+# 1.1 Checkout toppen
+git checkout feature/d5-per-app-profiles
+
+# 1.2 Generér Xcode-projekt
+cd saga-app
+xcodegen generate
+
+# 1.3 Åbn i Xcode (KRÆVES før kommando-line build for at SPM-resolve Sparkle)
+open Saga.xcodeproj
+# Vent på SPM-resolve completion (Sparkle 2.6+ downloades). Tjek øverste-bar i Xcode.
+# Hvis resolve fejler: prøv at sætte specifik version i project.yml: `from: "2.6.4"` → xcodegen generate igen
+
+# 1.4 Build fra command-line
+xcodebuild -project Saga.xcodeproj \
+  -scheme Saga \
+  -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' \
+  build 2>&1 | tee /tmp/saga-build.log | tail -60
+```
+
+#### Hvis build fejler
+
+Kig i `/tmp/saga-build.log`. Forventede patterns:
+
+| Error | Fix |
+|---|---|
+| `no such module 'Sparkle'` | SPM ikke resolved. Åbn `.xcodeproj` i Xcode først, vent på package-resolve, prøv igen |
+| `SuperHard concurrency violation` | Tilføj `@MainActor` eller `@unchecked Sendable` på det flagget symbol |
+| `Cannot find 'AppProfile' in scope` | xcodegen mangler nye filer — kør `xcodegen generate` igen |
+| `Use of unresolved identifier 'kAXFocusedUIElementAttribute'` | Tilføj `import ApplicationServices` til toppen af filen |
+| `Force-cast to AXUIElement` | OK i Swift, men hvis SwiftLint klager: behold `swiftlint:disable:this force_cast`-kommentar |
+
+**Fix isoleret**: hvis fejlen er i fx D4's `LivePartialTranscriber`:
+```bash
+git checkout feature/d4-live-partial-transcript
+# fix
+git commit -am "fix: <beskriv fejl>"
+git push
+# Cherry-merge upstream til D5
+git checkout feature/d5-per-app-profiles
+git merge feature/d4-live-partial-transcript
+git push
+```
+
+✅ **Section 1 done når:** `xcodebuild build` returnerer "BUILD SUCCEEDED" på `feature/d5-per-app-profiles`.
+
+❌ **Stop her hvis build ikke er grøn.** Ingen merge må ske før compile virker.
+
+---
+
+### Section 2 — Test-suite eksekvering (5 min)
+
+```bash
+# Kør de 72 unit-tests
+xcodebuild test \
+  -project Saga.xcodeproj \
+  -scheme Saga \
+  -destination 'platform=macOS,arch=arm64' \
+  -enableCodeCoverage YES 2>&1 | tee /tmp/saga-tests.log | tail -40
+```
+
+Forventet output ender med "Test Succeeded".
+
+#### Hvis tests fejler
+
+Sandsynlige årsager:
+- `KeychainStoreTests` fejler hvis macOS-Keychain-permission ikke er grantet → kør én gang med GUI åben for at trigge permission-prompt
+- `CompanionSessionTests`/`SentenceFlusherTests` skal passere uden afhængigheder — hvis de fejler er det reel logic-fejl
+- Hvis specifik test fejler, fix den isoleret før du fortsætter
+
+✅ **Section 2 done når:** Test-suite er grøn (eller kun Keychain-tests fejler, hvilket er OK i CI-context).
+
+---
+
+### Section 3 — Merge PR #1 først (sikkert, ingen kode) (5 min)
+
+PR #1 er ren docs/community-filer. Sikker at merge selv uden noget testet.
+
+```bash
+gh pr merge 1 --squash --delete-branch
+# Eller bare via GitHub UI
+
+git checkout main
+git pull
+```
+
+✅ **Section 3 done når:** PR #1 er merged til main, `git log main` viser commits fra Sprint A.
+
+---
+
+### Section 4 — Smoke-test regressionsbasis (5 min)
+
+Bekræft at den eksisterende dictation-flow virker FØR du merger noget der rører den.
+
+1. Cmd+R i Xcode (på `feature/d5-per-app-profiles`)
+2. Granté Mikrofon + Accessibility i System Settings hvis prompted
+3. Åbn Notes
+4. Hold højre Option, sig "test af regression", slip
+5. Verificér tekst dukker op ved cursor
+
+❌ **Stop hvis dictation IKKE virker.** Det betyder D-stakken har brudt push-to-talk og skal fixes før noget merges.
+
+✅ **Section 4 done når:** dictation virker som før.
+
+---
+
+### Section 5 — Merge PR #2 (Sprint B) (10 min test + 2 min merge)
+
+PR #2 er Sprint B's vocabulary + VAD + voice-edit. Separat track fra C/D-stakken.
+
+#### Test først
+
+```bash
+git checkout feature/sprint-b-power-user
+xcodegen generate
+# Cmd+R i Xcode
+```
+
+Smoke-tests (alle skal passere):
+- **Vocabulary**: Settings → Ordforråd → "Ny entry" pattern=`xcodegen` replacement=`XcodeGen`. Sig "jeg bruger xcodegen" → output skal være "jeg bruger XcodeGen"
+- **VAD**: Settings → Stemme → "Aktivér auto-stop". Hold hotkey, sig en sætning, vent 1.2s → recording skal stoppe automatisk
+- **Voice-edit**: Markér tekst i Notes, hold hotkey, sig "ret kolon gør den mere formel". Kræver LM Studio kører. Markeret tekst skal overskrives med poleret version
+
+#### Merge
+
+```bash
+gh pr merge 2 --squash --delete-branch
+```
+
+✅ **Section 5 done når:** Vocabulary entry virker live + VAD auto-stopper recording + PR #2 merged.
+
+---
+
+### Section 6 — Merge C-stakken: PR #3 → #4 → #5 (30 min)
+
+Companion-flowet kræver ALL three for at give mening. Test alt på toppen (PR #5), merge bottom-up.
+
+#### Test på C3-toppen
+
+```bash
+git checkout feature/sprint-c3-companion-overlay
+xcodegen generate
+# Cmd+R
+```
+
+**Pre-test**:
+- Settings → Stemme → wake-word ON (granté SFSpeech-permission hvis prompted)
+- Settings → Companion → "Aktivér Companion" ON
+- Settings → Companion → Engine: Apple (skip ElevenLabs i denne runde)
+- Klik "Test TTS" → skal høre Sara/dansk-stemme sige "Hej, jeg er Saga"
+
+**Test conversation**:
+1. Klik "Start test-conversation" (eller sig "Hej Saga")
+2. Verificér overlay glider ind nederst på skærm
+3. Sig "hvad er klokken"
+4. Verificér state-overgange: lytter → transskriberer → tænker → taler
+5. Caption skal vise dit transcript + Saga's reply
+6. Saga's stemme skal afspilles
+7. Sig "tak" → overlay fader ud
+
+❌ **Stop hvis Companion ikke virker.** Specifikt:
+- Hvis state hænger i "tænker": LM Studio er ikke nået. Tjek at LM Studio kører + er auto-detected i Settings → Stemme
+- Hvis caption forbliver tom: Canary fejlede. Tjek Console.app for errors
+- Hvis lyd ikke afspilles: TTS fejlede. Test "Test TTS"-knappen igen
+
+#### Merge i rækkefølge
+
+```bash
+# C1 først (TTS)
+gh pr merge 3 --squash --delete-branch
+
+# C2 (Companion state) — auto-rebases mod main efter #3 merger
+gh pr merge 4 --squash --delete-branch
+
+# C3 (overlay)
+gh pr merge 5 --squash --delete-branch
+```
+
+GitHub vil auto-rebase de stacked PR'er. Hvis der er konflikter, ret dem inline.
+
+✅ **Section 6 done når:** Companion conversation virker end-to-end + PR #3, #4, #5 merged.
+
+---
+
+### Section 7 — Merge PR #6 (D1, refactor) (5 min)
+
+Pure file-move af SettingsView. Ingen runtime-test nødvendig udover at Settings stadig åbner.
+
+```bash
+git checkout feature/d1-settings-split
+xcodegen generate
+# Cmd+R, åbn Settings, klik gennem alle tabs
+```
+
+Verificér: alle Settings-tabs (Generelt, Stemme, Modes, Companion, Reminders, Om) renderer uden tomme paneler.
+
+```bash
+gh pr merge 6 --squash --delete-branch
+```
+
+✅ **Section 7 done når:** Settings-window viser alle tabs korrekt + PR #6 merged.
+
+---
+
+### Section 8 — STOP og fix Sparkle FØR PR #7 (15 min, én-gang)
+
+**Det her er kritisk.** PR #7 introducerer Sparkle med en placeholder public-key. Hvis du merger uden fix, vil app'en crash'e ved "Tjek for opdatering" eller silent fail.
+
+```bash
+# 8.1 Generér Sparkle EdDSA keypair
+brew install --cask sparkle
+# Eller download fra https://github.com/sparkle-project/Sparkle/releases
+generate_keys
+
+# Output indeholder linjen:
+#   SUPublicEDKey: AbCdEfGh...
+# Privat-nøglen ligger nu i Keychain. Backup hvis du ønsker.
+```
+
+```bash
+# 8.2 Indsæt public-key i project.yml
+git checkout feature/d2-sparkle-and-slim-dmg
+# Edit saga-app/project.yml:
+#   SUPublicEDKey: "REPLACE_WITH_BASE64_PUBLIC_KEY_FROM_generate_keys"
+# Erstat med din rigtige key
+$EDITOR saga-app/project.yml
+
+# 8.3 Commit + push fix til samme branch
+git commit -am "fix: real SUPublicEDKey from generate_keys"
+git push
+
+# 8.4 Build verificering
+xcodegen generate
+xcodebuild -project saga-app/Saga.xcodeproj -scheme Saga -configuration Debug -destination 'platform=macOS,arch=arm64' build 2>&1 | tail -20
+```
+
+**Hvis du ikke vil bruge Sparkle nu:** lad placeholder stå MEN hop direkte til Section 10. Du kan ikke trygt merge #7 uden enten at fixe key eller fjerne Sparkle-dep'et.
+
+✅ **Section 8 done når:** `SUPublicEDKey` er en rigtig base64-streng + build er grøn på D2.
+
+---
+
+### Section 9 — Test + merge PR #7 (D2) (10 min)
+
+```bash
+git checkout feature/d2-sparkle-and-slim-dmg
+# Cmd+R i Xcode
+```
+
+Smoke-tests:
+- **Sparkle UI exists**: Settings → Om → "Auto-update" card synlig med toggle og "Tjek nu"-knap
+- **Klik "Tjek nu"**: Sparkle viser dialog. Pt. forventet "Up to date" eller "Could not load feed" hvis appcast.xml ikke er hostet — det er OK, vi tester bare at flow'et trigger
+- **ModelStorage**: Settings → Om → "Speech-modeller" viser "Klar" (siden mlpackages er bundlet i Debug-build)
+
+```bash
+gh pr merge 7 --squash --delete-branch
+```
+
+✅ **Section 9 done når:** Sparkle "Tjek nu"-knappen viser en dialog + PR #7 merged.
+
+---
+
+### Section 10 — Test + merge PR #8 (D3, cursor bubble) (10 min)
+
+```bash
+git checkout feature/d3-cursor-bubble
+xcodegen generate
+# Cmd+R
+```
+
+Smoke-test:
+1. Settings → Companion → "Cursor-bubble" ON
+2. Klik "Start test-conversation"
+3. Verificér lille bubble dukker op nær cursor med state-ikon
+4. Flyt musen — bubble skal følge med
+5. Flyt mod højre kant af skærm — bubble skal flippe til venstre side af cursor
+6. Sig "tak" — bubble skal forsvinde
+
+❌ **Hvis bubble ikke flytter sig**: NSEvent global monitor virker ikke. Mulige årsager: Accessibility-permission er ikke effective for det. Re-launch app efter at have kørt System Settings → Privacy → Accessibility på Saga.app.
+
+```bash
+gh pr merge 8 --squash --delete-branch
+```
+
+✅ **Section 10 done når:** Bubble følger musen + PR #8 merged.
+
+---
+
+### Section 11 — Test + merge PR #9 (D4, live partial transcripts) (15 min)
+
+**Højrisiko-section.** Concurrent mic-access mellem AVAudioEngine og AVAudioRecorder er ikke verificeret.
+
+```bash
+git checkout feature/d4-live-partial-transcript
+xcodegen generate
+# Cmd+R
+```
+
+Smoke-test:
+1. Companion enabled, wake-word ON
+2. Klik "Start test-conversation"
+3. Sig en LANG sætning langsomt: "jeg vil gerne vide hvad klokken er lige nu på min mac"
+4. Mens du taler: tjek at user-caption i overlay opdateres ord for ord (live partial fra SFSpeech)
+5. Når du stopper: caption skal blive erstattet med Canary's authoritative version (kan se lidt anderledes ud — Canary har bedre dansk)
+
+❌ **Hvis live-partial IKKE opdaterer mens du taler**:
+- Tjek SFSpeech-permission er grantet
+- Tjek Console.app for "LivePartialTranscriber: AVAudioEngine.start fejlede"
+- Hvis AVAudioEngine fejler, det er typisk fordi AVAudioRecorder allerede holder mic exclusive — kan kræve refactor til shared audio session
+
+❌ **Hvis Canary's transcript er TOM efter du stopper**:
+- Det betyder mic-access conflict gjorde at AVAudioRecorder ikke fik samples
+- Disable D4 features ved at fjerne `livePartial.start(...)`-kald i `CompanionController.startNextTurn()` og `livePartial.stop()` andre steder
+- Push fix til samme branch, retry
+
+```bash
+gh pr merge 9 --squash --delete-branch
+```
+
+✅ **Section 11 done når:** Live partials virker + Canary's transcript er korrekt + PR #9 merged.
+
+---
+
+### Section 12 — Test + merge PR #10 (D5, per-app profiler) (10 min)
+
+```bash
+git checkout feature/d5-per-app-profiles
+xcodegen generate
+# Cmd+R
+```
+
+Smoke-test:
+1. Åbn Notes (vigtigt — skal være frontmost app)
+2. Settings → Apps → klik "Profil for Notes" (knap pre-fylder bundle-id)
+3. Sæt `forcedModeId = format`
+4. Klik "Opret"
+5. Skift til Notes (Cmd+Tab), hold push-to-talk, sig "det her er en grim sætning fra mig"
+6. Verificér output: format-mode er auto-applied → poleret tekst i stedet for rå dictation
+7. Skift til Safari (eller anden non-profilet app), test push-to-talk → original behavior
+
+```bash
+gh pr merge 10 --squash --delete-branch
+```
+
+✅ **Section 12 done når:** Per-app profil aktiveres korrekt + PR #10 merged.
+
+---
+
+### Section 13 — Tag v0.5.0-beta1 + slim-DMG-test (15 min)
+
+Alt er nu på main. Tag den og byg en distribution-klar DMG.
+
+```bash
+git checkout main
+git pull
+git tag -a v0.5.0-beta1 -m "v0.5.0 beta 1: Companion mode + cursor bubble + per-app profiles"
+git push origin v0.5.0-beta1
+
+# Bundled DMG (1.7 GB) — fungerer 100%
+./scripts/build-dmg.sh
+# → dist/Saga-0.5.0.dmg
+
+# (Optional) Slim DMG hvis du har uploaded canary-coreml release-assets
+SAGA_SLIM=1 ./scripts/build-dmg.sh
+# → dist/Saga-0.5.0.dmg (~150 MB, kræver download ved første launch)
+```
+
+Test installation på en frisk Mac eller på samme Mac efter slet-Saga.app:
+1. Mount DMG → drag til /Applications
+2. Spotlight: "Saga" → første launch
+3. Granté permissions
+4. Verificér push-to-talk dictation virker
+5. Aktivér Companion + test conversation
+
+✅ **Section 13 done når:** v0.5.0-beta1 tagget + DMG installerer + dictation + Companion virker.
+
+---
+
+## ▶ Komplet merge-rækkefølge (resume-tabel)
+
+| # | Branch | Section | Pre-merge requirement |
+|---|---|---|---|
+| 1 | `feature/sprint-a-docs-only` | §3 | Ingen — pure docs |
+| 2 | `feature/sprint-b-power-user` | §5 | Vocabulary + VAD + voice-edit smoke-tested |
+| 3 | `feature/sprint-c1-tts-infra` | §6 | TTS test virker |
+| 4 | `feature/sprint-c2-companion-state` | §6 | Conversation flow virker |
+| 5 | `feature/sprint-c3-companion-overlay` | §6 | Overlay viser sig |
+| 6 | `feature/d1-settings-split` | §7 | Alle Settings-tabs renderer |
+| — | **STOP**: fix `SUPublicEDKey` | §8 | Sparkle key indsat i project.yml |
+| 7 | `feature/d2-sparkle-and-slim-dmg` | §9 | "Tjek nu" trigger dialog |
+| 8 | `feature/d3-cursor-bubble` | §10 | Bubble følger musen |
+| 9 | `feature/d4-live-partial-transcript` | §11 | Live captions OG Canary virker begge |
+| 10 | `feature/d5-per-app-profiles` | §12 | Per-app override aktiveres |
+
+Total estimeret tid hvis alt går glat: **~3 timer**. Hvis compile-fejl: tilføj 30-90 min for fixes.
+
+---
 
 ---
 
