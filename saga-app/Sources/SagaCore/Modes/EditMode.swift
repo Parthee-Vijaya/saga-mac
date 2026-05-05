@@ -54,7 +54,8 @@ public enum EditMode {
         Du er en præcis tekst-editor. Brugeren har markeret en tekst og bedt dig om \
         at redigere den. Returnér KUN den redigerede tekst — ingen forklaring, ingen \
         anførselstegn omkring, ingen 'her er resultatet'. Bevar tone og betydning \
-        med mindre brugeren eksplicit beder om ændring.
+        med mindre brugeren eksplicit beder om ændring. Skriv den færdige tekst \
+        direkte uden lang analyse eller alternative versioner.
         """
         let userMessage = """
         Markeret tekst:
@@ -67,10 +68,14 @@ public enum EditMode {
 
         log.info("EditMode: instruktion=\"\(safeInstruction.prefix(80), privacy: .public)\", selection=\(selection.count, privacy: .public) chars")
 
+        // Reasoning-modeller (gemma-thinking, deepseek-r1) kan bruge 1500-2000
+        // tokens på reasoning før de når at producere content. Med 8192 har de
+        // plads til både tænkning og det endelige svar selv på lange tekster.
         let result = try await controller.lmStudio.chat(
             system: systemPrompt,
             user: userMessage,
-            temperature: 0.3
+            temperature: 0.3,
+            maxTokens: 8192
         )
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }

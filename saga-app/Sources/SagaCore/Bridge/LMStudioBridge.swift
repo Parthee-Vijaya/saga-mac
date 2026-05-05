@@ -199,10 +199,19 @@ public final class LMStudioBridge: @unchecked Sendable {
         }
 
         let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
-        guard let text = decoded.choices.first?.message.content else {
+        guard let message = decoded.choices.first?.message else {
             throw LMStudioError.emptyResponse
         }
-        return text
+        // Reasoning-modeller (gemma-thinking, nemotron-thinking osv.): hvis
+        // content er tom og reasoning_content findes, ramte modellen typisk
+        // max_tokens-grænsen under reasoning. Throw så caller kan vise fejl.
+        if message.content.isEmpty {
+            if let reasoning = message.reasoningContent, !reasoning.isEmpty {
+                throw LMStudioError.reasoningOnlyResponse(reasoningTokens: reasoning.count)
+            }
+            throw LMStudioError.emptyResponse
+        }
+        return message.content
     }
 
     /// Streaming chat med multi-turn message-history. Bruges af Companion-mode
@@ -362,6 +371,15 @@ private struct ChatResponse: Codable {
         let message: Message
         struct Message: Codable {
             let content: String
+            /// LM Studio returnerer reasoning-modellers tanker her (gemma-thinking,
+            /// nemotron-thinking, deepseek-r1 osv.). Hvis content er "" og reasoning_content
+            /// findes, betyder det modellen ramte token-limit under reasoning og
+            /// nåede ikke at producere det endelige svar.
+            let reasoningContent: String?
+            enum CodingKeys: String, CodingKey {
+                case content
+                case reasoningContent = "reasoning_content"
+            }
         }
     }
 }
@@ -392,6 +410,11 @@ public struct DiscoveredEndpoint: Sendable, Identifiable, Equatable {
 public enum LMStudioError: Error, LocalizedError {
     case serverError(status: Int, body: String)
     case emptyResponse
+    /// Reasoning-modellen (fx gemma-thinking) brugte hele max_tokens på "tænkning"
+    /// og nåede aldrig at producere det endelige svar i `content`. Bruger skal
+    /// enten forhøje max_tokens, vælge en ikke-reasoning-model, eller slå
+    /// thinking fra i LM Studio's model-konfiguration.
+    case reasoningOnlyResponse(reasoningTokens: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -399,6 +422,8 @@ public enum LMStudioError: Error, LocalizedError {
             return "LM Studio fejlede (\(status)): \(body)"
         case .emptyResponse:
             return "LM Studio returnerede en tom respons"
+        case .reasoningOnlyResponse(let tokens):
+            return "Reasoning-modellen brugte alle tokens på tænkning (\(tokens) chars) og nåede ikke svaret. Vælg en ikke-reasoning model i LM Studio (fx nemotron-3-nano), forhøj max_tokens, eller slå reasoning fra."
         }
     }
 }
