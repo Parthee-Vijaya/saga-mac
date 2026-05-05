@@ -17,6 +17,8 @@ public struct SettingsView: View {
                 .tabItem { Label("Stemme", systemImage: "mic") }
             ModesSettingsTab()
                 .tabItem { Label("Modes", systemImage: "wand.and.stars") }
+            AppProfilesSettingsTab()
+                .tabItem { Label("Apps", systemImage: "app.badge") }
             CompanionSettingsTab()
                 .tabItem { Label("Companion", systemImage: "bubble.left.and.bubble.right") }
             RemindersSettingsTab()

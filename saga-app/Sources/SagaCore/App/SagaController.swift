@@ -31,6 +31,7 @@ public final class SagaController: ObservableObject {
     public let companion: CompanionController
     public let updates: UpdateManager
     public let modelDownloader: ModelDownloader
+    public let appProfiles: AppProfileStore
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -81,6 +82,7 @@ public final class SagaController: ObservableObject {
         self.companion = CompanionController()
         self.updates = UpdateManager()
         self.modelDownloader = ModelDownloader()
+        self.appProfiles = AppProfileStore()
         self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
         self.wakeWordEnabled = UserDefaults.standard.bool(forKey: "wakeWordEnabled")
     }
@@ -289,11 +291,18 @@ public final class SagaController: ObservableObject {
             return
         }
 
+        // Hent per-app profil for frontmost app (snapshot taken før recording stop
+        // for at undgå at fokus-skift under recording skifter profil mid-flow).
+        let profile = appProfiles.currentProfile()
+
         Task { @MainActor in
             do {
                 let transcript = try await asr.transcribe(pcm: pcm, language: "da")
 
-                if stenografMode {
+                // Effektiv stenograf: profil har højere prioritet end global setting.
+                let effectiveStenograf = profile?.stenografOverride ?? stenografMode
+
+                if effectiveStenograf {
                     // Stenograf-mode: skip alt mode-routing, gå direkte til cursor.
                     cursor.type(transcript.text.trimmingCharacters(in: .whitespacesAndNewlines))
                     history.append(TranscriptEntry(
@@ -312,12 +321,17 @@ public final class SagaController: ObservableObject {
                 state = .routing
                 hud.update(state: .routing)
 
+                // Hvis profil har forcedModeId: prepend mode'ens første trigger til
+                // transcript før routing, så ModeRouter matcher præcis den mode
+                // selv hvis brugeren ikke selv siger trigger-ordet.
+                let effectiveTranscript = applyForcedMode(profile: profile, transcript: transcript.text)
+
                 let result: RouteResult
                 do {
-                    if let preview = modes.previewMatch(for: transcript.text) {
+                    if let preview = modes.previewMatch(for: effectiveTranscript) {
                         hud.update(state: .routing, activeMode: preview)
                     }
-                    result = try await modes.route(text: transcript.text, controller: self)
+                    result = try await modes.route(text: effectiveTranscript, controller: self)
                 } catch let modeError as ModeError {
                     log.warning("Mode-routing fejlede, falder tilbage til rå-transkription")
                     lastError = modeError.errorDescription
@@ -345,6 +359,21 @@ public final class SagaController: ObservableObject {
                 wakeWord.resumeAfterRecording()
             }
         }
+    }
+
+    /// Hvis profil har forcedModeId konfigureret, prepend mode'ens første trigger
+    /// til transcript så ModeRouter matcher den. Hvis ikke: returnér uændret.
+    private func applyForcedMode(profile: AppProfile?, transcript: String) -> String {
+        guard let profile, let modeId = profile.forcedModeId else { return transcript }
+        let allModes = Mode.builtins + modes.custom
+        guard let mode = allModes.first(where: { $0.id == modeId }),
+              let firstTrigger = mode.triggers.first else { return transcript }
+        // Hvis transcript allerede starter med en trigger, gør ikke noget
+        let lower = transcript.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if mode.triggers.contains(where: { lower.hasPrefix($0.lowercased()) }) {
+            return transcript
+        }
+        return "\(firstTrigger) \(transcript)"
     }
 }
 
