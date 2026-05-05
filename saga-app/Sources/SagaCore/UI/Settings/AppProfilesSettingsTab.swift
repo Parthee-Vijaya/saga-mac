@@ -222,9 +222,8 @@ struct AppProfileEditor: View {
         static func from(_ override: Bool?) -> StenografChoice {
             switch override {
             case nil: return .useGlobal
-            case true: return .forceOn
-            case false: return .forceOff
-            default: return .useGlobal
+            case .some(true): return .forceOn
+            case .some(false): return .forceOff
             }
         }
 

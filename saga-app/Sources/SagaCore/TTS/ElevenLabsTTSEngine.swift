@@ -119,9 +119,9 @@ public final class ElevenLabsTTSEngine: TTSEngine, @unchecked Sendable {
             player.delegate = delegate
             player.prepareToPlay()
 
-            lock.lock()
-            currentPlayer = player
-            lock.unlock()
+            lock.withLock {
+                currentPlayer = player
+            }
 
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 delegate.continuation = continuation

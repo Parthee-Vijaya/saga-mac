@@ -17,7 +17,7 @@ public struct SentenceFlusher {
     /// at samle dem med næste sætning.
     public let minLength: Int
 
-    public init(minLength: Int = 12) {
+    public init(minLength: Int = 10) {
         self.minLength = minLength
     }
 
@@ -58,8 +58,11 @@ public struct SentenceFlusher {
                 let nextIsWhitespace = !isLastChar && buffer[next].isWhitespace
 
                 if nextIsWhitespace || buffer[i] == "\n" {
-                    let sentence = current.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if sentence.count >= minLength {
+                    // Sammenlign på `current.count` (inkl. trailing whitespace)
+                    // for at matche minLength's intentioned semantics: en
+                    // sætning der ender med ". " på minLength=12 tæller som 12.
+                    if current.count >= minLength {
+                        let sentence = current.trimmingCharacters(in: .whitespacesAndNewlines)
                         results.append(sentence)
                         sentenceStart = next
                         current = ""

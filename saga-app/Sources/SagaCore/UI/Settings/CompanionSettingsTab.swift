@@ -64,7 +64,10 @@ struct CompanionSettingsTab: View {
                         "Engine",
                         subtitle: engineSubtitle
                     ) {
-                        Picker("", selection: $controller.tts.preferredEngineID) {
+                        Picker("", selection: Binding(
+                            get: { controller.tts.preferredEngineID },
+                            set: { controller.tts.preferredEngineID = $0 }
+                        )) {
                             Text("Apple (offline)").tag("apple")
                             Text("ElevenLabs (cloud)").tag("elevenlabs")
                         }
@@ -79,7 +82,10 @@ struct CompanionSettingsTab: View {
                             "Apple-stemme",
                             subtitle: "Vælg blandt installerede danske stemmer."
                         ) {
-                            Picker("", selection: $controller.tts.appleVoiceID) {
+                            Picker("", selection: Binding(
+                                get: { controller.tts.appleVoiceID },
+                                set: { controller.tts.appleVoiceID = $0 }
+                            )) {
                                 ForEach(AppleTTSEngine.availableDanishVoices(), id: \.identifier) { voice in
                                     Text("\(voice.name) (\(qualityLabel(voice.quality)))")
                                         .tag(voice.identifier)
@@ -172,11 +178,17 @@ struct CompanionSettingsTab: View {
                                     Text("Klik refresh for at hente listen — eller indsæt voice-ID manuelt.")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
-                                    TextField("Voice-ID", text: $controller.tts.elevenLabsVoiceID)
+                                    TextField("Voice-ID", text: Binding(
+                                        get: { controller.tts.elevenLabsVoiceID },
+                                        set: { controller.tts.elevenLabsVoiceID = $0 }
+                                    ))
                                         .textFieldStyle(.roundedBorder)
                                         .font(.system(.caption, design: .monospaced))
                                 } else {
-                                    Picker("", selection: $controller.tts.elevenLabsVoiceID) {
+                                    Picker("", selection: Binding(
+                                        get: { controller.tts.elevenLabsVoiceID },
+                                        set: { controller.tts.elevenLabsVoiceID = $0 }
+                                    )) {
                                         ForEach(voiceCatalog) { voice in
                                             Text(voiceLabel(voice)).tag(voice.voiceID)
                                         }

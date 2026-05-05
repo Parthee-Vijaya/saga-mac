@@ -36,5 +36,13 @@
 	<string>Saga bruger skærmoptagelse til vision-mode, hvor den kan beskrive eller besvare spørgsmål om indholdet på skærmen.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Saga bruger Apple's on-device speech recognition til at lytte efter wake-word ('Hej Saga'). Audio sendes ikke til Apple's cloud.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://parthee-vijaya.github.io/saga-mac/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>REPLACE_WITH_BASE64_PUBLIC_KEY_FROM_generate_keys</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>
