@@ -13,6 +13,7 @@ public final class CompanionController: ObservableObject {
     public let session: CompanionSession
     public let overlay: CompanionOverlayController
     public let cursorBubble: CursorBubbleController
+    private let livePartial = LivePartialTranscriber()
     private weak var saga: SagaController?
 
     @Published public private(set) var state: CompanionState = .idle {
@@ -106,6 +107,7 @@ public final class CompanionController: ObservableObject {
     public func endSession() {
         log.info("Companion: endSession")
         cancelCurrentTurn(reason: "session-end")
+        livePartial.stop()
         Task { @MainActor in
             saga?.tts.stop()
             saga?.audio.stop()
@@ -138,6 +140,19 @@ public final class CompanionController: ObservableObject {
 
         saga.wakeWord.pauseForRecording()
         saga.audio.start()
+
+        // Live partial transcript via Apples on-device recognizer.
+        // Canary giver authoritative transcript ved turn-end; live-partial er kun
+        // til UI-feedback under recording. Hvis SFSpeechRecognizer ikke er
+        // tilgængelig (no permission, no network for older macOS) er det stadig
+        // OK — bruger venter bare lidt længere på Canary's færdige output.
+        livePartial.start { [weak self] partial in
+            // Skriv kun til currentUserPartial mens vi faktisk er i listening-state.
+            // Hvis Canary allerede har overskrevet med authoritative resultat
+            // er vi ovre i transcribing/thinking — undgå at træde over.
+            guard let self, self.state == .listening else { return }
+            self.currentUserPartial = partial
+        }
 
         // Start silence-monitor parallelt
         silenceMonitorTask?.cancel()
@@ -181,6 +196,8 @@ public final class CompanionController: ObservableObject {
     private func finishCurrentTurn() async {
         guard let saga, state == .listening else { return }
         state = .transcribing
+        // Stop live partial — Canary tager over med authoritative transcript
+        livePartial.stop()
         let pcm = saga.audio.stop()
 
         guard pcm.duration > 0.3 else {
