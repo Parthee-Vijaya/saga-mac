@@ -291,7 +291,11 @@ public final class CompanionController: ObservableObject {
         let normalized = text.lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: ".,!?"))
-        return CompanionSession.endOfSessionPhrases.contains(normalized)
+        // Match exact ("tak") eller prefix ("tak skal du have", "tak for nu").
+        // IKKE suffix — "ja tak" / "nej tak" er bekræftelse, ikke farvel.
+        return CompanionSession.endOfSessionPhrases.contains { phrase in
+            normalized == phrase || normalized.hasPrefix(phrase + " ")
+        }
     }
 }
 

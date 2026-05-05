@@ -15,10 +15,11 @@ public final class WakeWordDetector: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "wake-word")
 
     /// Frasen(er) Saga lytter efter. Hver match-test er case-insensitive substring.
-    /// Default: bare "saga" (kort + naturligt). "hej saga"/"hey saga" matches også
-    /// pga. substring-test. Risiko for false positives hvis bruger taler om "saga"
-    /// i andre sammenhænge — overvej at vælge mere distinkt frase i Settings senere.
-    public var phrases: [String] = ["saga"]
+    /// Default: "saga" + "jarvis" (kort + naturligt). "hej saga" / "hej jarvis"
+    /// matches også pga. substring-test. Risiko for false positives hvis bruger
+    /// taler om "saga" i andre sammenhænge — overvej at vælge mere distinkt frase
+    /// i Settings senere.
+    public var phrases: [String] = ["saga", "jarvis"]
 
     @Published public private(set) var isListening: Bool = false
     @Published public private(set) var lastError: String?
