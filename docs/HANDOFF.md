@@ -14,6 +14,8 @@ Hvis du er Claude Code på en frisk session og brugeren har givet dig dette doku
 - Brugerens repo ligger sandsynligvis i `~/Projects/saga-mac` (verificér med `pwd` + `git remote -v`).
 - Hvis et trin kræver brugerens manuelle input (fx tilladelse til mikrofon i System Settings) — bed brugeren udføre det og rapportér resultatet før du fortsætter.
 
+> 📝 Brugeren har sandsynligvis allerede vist dig `docs/CLAUDE_STARTER_PROMPT.md` med formel briefing-format. Hvis ikke, læs den også — den er kortere end dette dokument og opsummerer din rolle.
+
 ## TL;DR
 
 10 PR'er er åbne på GitHub. **Ingen af dem er nogensinde compiled** — alt er skrevet på en CLI-maskine uden Xcode. Saga's projekt-config er `SWIFT_STRICT_CONCURRENCY=complete` og `-warnings-as-errors`, så compile-risiko er reel.
