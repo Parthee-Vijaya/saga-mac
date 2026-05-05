@@ -1,7 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 import OSLog
-import Speech
+@preconcurrency import Speech
 
 /// On-device live partial-transcript via SFSpeechRecognizer.
 ///
@@ -59,8 +59,13 @@ public final class LivePartialTranscriber {
         }
 
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak request] buffer, _ in
-            request?.append(buffer)
+        // installTap-callback fyrer på AVAudioEngine's audio render thread,
+        // ikke MainActor. Uden @Sendable arver closure'en @MainActor fra class
+        // og Swift-runtime crasher i swift_task_isCurrentExecutorWithFlagsImpl.
+        // Samme fix-pattern som WakeWordDetector.
+        nonisolated(unsafe) let weakRequest = request
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { @Sendable [weak weakRequest] buffer, _ in
+            weakRequest?.append(buffer)
         }
 
         recognitionRequest = request
