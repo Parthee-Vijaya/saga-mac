@@ -61,26 +61,38 @@ struct UpdateCard: View {
     var body: some View {
         SettingsCard(
             "Auto-update",
-            footer: "Sparkle henter signerede updates fra GitHub Releases. Kræver appcast.xml hosted (se docs/RELEASE.md)."
+            footer: UpdateManager.isConfigured
+                ? "Sparkle henter signerede updates fra GitHub Releases."
+                : "Auto-update er deaktiveret indtil release-flow er sat op (SUPublicEDKey skal udskiftes — se docs/RELEASE.md)."
         ) {
-            SettingsRow(
-                "Tjek for opdateringer automatisk",
-                subtitle: lastCheckSubtitle
-            ) {
-                Toggle("", isOn: Binding(
-                    get: { controller.updates.automaticChecksEnabled },
-                    set: { controller.updates.automaticChecksEnabled = $0 }
-                ))
-                .toggleStyle(.switch)
-                .labelsHidden()
-            }
-            Divider().padding(.vertical, 4)
-            HStack {
-                Spacer()
-                Button {
-                    controller.updates.checkForUpdates()
-                } label: {
-                    Label("Tjek nu", systemImage: "arrow.down.circle")
+            if UpdateManager.isConfigured {
+                SettingsRow(
+                    "Tjek for opdateringer automatisk",
+                    subtitle: lastCheckSubtitle
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { controller.updates.automaticChecksEnabled },
+                        set: { controller.updates.automaticChecksEnabled = $0 }
+                    ))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                }
+                Divider().padding(.vertical, 4)
+                HStack {
+                    Spacer()
+                    Button {
+                        controller.updates.checkForUpdates()
+                    } label: {
+                        Label("Tjek nu", systemImage: "arrow.down.circle")
+                    }
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.secondary)
+                    Text("Deaktiveret. Du kan stadig hente nye versioner manuelt fra GitHub Releases.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
                 }
             }
         }

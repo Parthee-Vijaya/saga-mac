@@ -26,6 +26,14 @@ public final class UpdateManager: ObservableObject {
         controller.updater.feedURL
     }
 
+    /// True hvis Sparkle er konfigureret med en rigtig EdDSA-nøgle (ikke placeholder).
+    public static var isConfigured: Bool {
+        guard let key = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String else {
+            return false
+        }
+        return !key.hasPrefix("REPLACE_WITH_") && !key.isEmpty
+    }
+
     public init() {
         // startingUpdater: false så vi kan instantiere fra @MainActor-context;
         // kalder start() manuelt fra bootIfNeeded når app er klar.
@@ -38,14 +46,24 @@ public final class UpdateManager: ObservableObject {
     }
 
     /// Start updater (registrér scheduled checks). Kaldes fra SagaController.bootIfNeeded.
+    /// Skipper helt hvis Sparkle ikke er konfigureret (SUPublicEDKey placeholder),
+    /// for at undgå "The updater failed to start"-dialog ved hver app-launch.
     public func start() {
+        guard Self.isConfigured else {
+            log.info("Sparkle disabled: SUPublicEDKey er placeholder (sæt rigtig key i project.yml for at aktivere auto-update)")
+            return
+        }
         controller.startUpdater()
         log.info("Sparkle started, feedURL=\(self.feedURL?.absoluteString ?? "?", privacy: .public)")
     }
 
     /// Trigger manuel update-check. Sparkle viser sit eget UI (alert hvis up-to-date,
-    /// download-prompt hvis ny version findes).
+    /// download-prompt hvis ny version findes). No-op hvis Sparkle er deaktiveret.
     public func checkForUpdates() {
+        guard Self.isConfigured else {
+            log.warning("Manuel update-check ignoreret: Sparkle er ikke konfigureret")
+            return
+        }
         log.info("Manuel update-check trigget")
         controller.checkForUpdates(nil)
     }
