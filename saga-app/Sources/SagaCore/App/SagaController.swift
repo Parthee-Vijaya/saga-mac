@@ -32,6 +32,8 @@ public final class SagaController: ObservableObject {
     public let updates: UpdateManager
     public let modelDownloader: ModelDownloader
     public let appProfiles: AppProfileStore
+    public let vocabulary: VocabularyStore
+    private let vocabularyProcessor = VocabularyPostProcessor()
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -64,6 +66,23 @@ public final class SagaController: ObservableObject {
     /// optager vi i denne periode og auto-stopper.
     @Published public var wakeWordRecordingDuration: TimeInterval = 6.0
 
+    /// VAD auto-stop: hvis aktiv, stopper recording automatisk efter
+    /// `vadSilenceDuration` sekunders stilhed (efter mindst 0.5s tale).
+    /// Default OFF for at bevare den eksisterende push-to-talk-følelse.
+    @Published public var vadAutoStopEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(vadAutoStopEnabled, forKey: "vadAutoStopEnabled")
+            log.info("VAD auto-stop: \(self.vadAutoStopEnabled ? "TIL" : "FRA", privacy: .public)")
+        }
+    }
+
+    /// Hvor lang stilhed der skal til før VAD trigger auto-stop. Default 1.2s.
+    @Published public var vadSilenceDuration: TimeInterval {
+        didSet {
+            UserDefaults.standard.set(vadSilenceDuration, forKey: "vadSilenceDuration")
+        }
+    }
+
     public init() {
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
@@ -83,8 +102,12 @@ public final class SagaController: ObservableObject {
         self.updates = UpdateManager()
         self.modelDownloader = ModelDownloader()
         self.appProfiles = AppProfileStore()
+        self.vocabulary = VocabularyStore()
         self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
         self.wakeWordEnabled = UserDefaults.standard.bool(forKey: "wakeWordEnabled")
+        self.vadAutoStopEnabled = UserDefaults.standard.bool(forKey: "vadAutoStopEnabled")
+        let savedDuration = UserDefaults.standard.double(forKey: "vadSilenceDuration")
+        self.vadSilenceDuration = savedDuration > 0 ? savedDuration : 1.2
     }
 
     public var menuBarIconName: String {
@@ -301,6 +324,21 @@ public final class SagaController: ObservableObject {
         lastError = nil
         state = .recording
         hud.show()
+
+        // Konfigurer VAD før start hvis bruger har slået auto-stop til.
+        if vadAutoStopEnabled {
+            let config = VADConfig(
+                silenceThreshold: 0.05,
+                silenceDuration: vadSilenceDuration,
+                minRecordingDuration: 0.5
+            )
+            audio.enableVAD(config: config) { [weak self] in
+                self?.handleHoldEnd()
+            }
+        } else {
+            audio.disableVAD()
+        }
+
         audio.start()
     }
 
@@ -325,15 +363,23 @@ public final class SagaController: ObservableObject {
             do {
                 let transcript = try await asr.transcribe(pcm: pcm, language: "da")
 
+                // Vocabulary post-processing — anvend brugerens egennavne/akronymer
+                // på den rå transcript før mode-routing. Bevarer den oprindelige
+                // tekst i history for transparens.
+                let correctedText = vocabularyProcessor.apply(
+                    transcript.text,
+                    entries: vocabulary.activeEntries
+                )
+
                 // Effektiv stenograf: profil har højere prioritet end global setting.
                 let effectiveStenograf = profile?.stenografOverride ?? stenografMode
 
                 if effectiveStenograf {
                     // Stenograf-mode: skip alt mode-routing, gå direkte til cursor.
-                    cursor.type(transcript.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                    cursor.type(correctedText.trimmingCharacters(in: .whitespacesAndNewlines))
                     history.append(TranscriptEntry(
                         rawText: transcript.text,
-                        processedText: transcript.text.trimmingCharacters(in: .whitespacesAndNewlines),
+                        processedText: correctedText.trimmingCharacters(in: .whitespacesAndNewlines),
                         modeId: nil,
                         durationMs: transcript.durationMs,
                         inferenceMs: transcript.inferenceMs
@@ -347,10 +393,10 @@ public final class SagaController: ObservableObject {
                 state = .routing
                 hud.update(state: .routing)
 
-                // Hvis profil har forcedModeId: prepend mode'ens første trigger til
-                // transcript før routing, så ModeRouter matcher præcis den mode
-                // selv hvis brugeren ikke selv siger trigger-ordet.
-                let effectiveTranscript = applyForcedMode(profile: profile, transcript: transcript.text)
+                // Vocabulary kommer FØRST (corrected text), så forced-mode prepender
+                // sin trigger på den korrigerede tekst. ModeRouter matcher derved
+                // præcis den profil-låste mode selv hvis brugeren ikke siger trigger.
+                let effectiveTranscript = applyForcedMode(profile: profile, transcript: correctedText)
 
                 let result: RouteResult
                 do {
@@ -361,7 +407,7 @@ public final class SagaController: ObservableObject {
                 } catch let modeError as ModeError {
                     log.warning("Mode-routing fejlede, falder tilbage til rå-transkription")
                     lastError = modeError.errorDescription
-                    result = RouteResult(text: modeError.fallbackText ?? transcript.text, mode: nil)
+                    result = RouteResult(text: modeError.fallbackText ?? correctedText, mode: nil)
                 }
 
                 cursor.type(result.text)
