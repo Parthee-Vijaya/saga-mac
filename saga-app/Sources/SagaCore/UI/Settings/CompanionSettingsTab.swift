@@ -32,6 +32,18 @@ struct CompanionSettingsTab: View {
                         .toggleStyle(.switch)
                         .labelsHidden()
                     }
+                    Divider().padding(.vertical, 4)
+                    SettingsRow(
+                        "Cursor-bubble",
+                        subtitle: "Lille floating-ikon der følger musen og viser hvad Companion laver. Default OFF — opt-in da det kan distrahere ved fokuseret arbejde."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.companion.cursorBubble.isEnabled },
+                            set: { controller.companion.cursorBubble.isEnabled = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
                     if controller.companion.enabled, !controller.wakeWordEnabled {
                         Divider().padding(.vertical, 4)
                         HStack(spacing: 8) {

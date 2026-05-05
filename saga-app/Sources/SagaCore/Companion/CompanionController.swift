@@ -12,15 +12,18 @@ public final class CompanionController: ObservableObject {
 
     public let session: CompanionSession
     public let overlay: CompanionOverlayController
+    public let cursorBubble: CursorBubbleController
     private weak var saga: SagaController?
 
     @Published public private(set) var state: CompanionState = .idle {
         didSet {
-            // Vis overlay ved aktiv samtale, dismiss når vi går idle.
+            // Vis overlay + bubble ved aktiv samtale, dismiss når vi går idle.
             if state == .idle, oldValue != .idle {
                 overlay.dismiss()
+                cursorBubble.dismiss()
             } else if state != .idle, oldValue == .idle {
                 overlay.show()
+                cursorBubble.show()
             }
         }
     }
@@ -58,10 +61,12 @@ public final class CompanionController: ObservableObject {
 
     public init(
         session: CompanionSession = CompanionSession(),
-        overlay: CompanionOverlayController = CompanionOverlayController()
+        overlay: CompanionOverlayController = CompanionOverlayController(),
+        cursorBubble: CursorBubbleController = CursorBubbleController()
     ) {
         self.session = session
         self.overlay = overlay
+        self.cursorBubble = cursorBubble
         self.enabled = UserDefaults.standard.bool(forKey: "companion.enabled")
     }
 
@@ -69,6 +74,7 @@ public final class CompanionController: ObservableObject {
     public func attach(saga: SagaController) {
         self.saga = saga
         overlay.attach(companion: self, audio: saga.audio)
+        cursorBubble.attach(companion: self)
     }
 
     // MARK: - Public API
