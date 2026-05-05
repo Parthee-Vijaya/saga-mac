@@ -1,0 +1,58 @@
+name: 💡 Feature request
+description: Foreslå en ny feature eller forbedring / Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tak for forslaget! / Thanks for the suggestion!
+
+        Saga's identitet er **lokal-først, dansk-først, tastatur-drevet, komponerbar**. Forslag der bryder disse principper kommer typisk ikke i kerne-appen, men kan være kandidater til custom modes eller plugins.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hvilket problem løser dette? / What problem does this solve?
+      description: Beskriv use-casen, ikke implementeringen / Describe the use case, not the implementation
+      placeholder: |
+        Som [type bruger] vil jeg [mål] så jeg kan [resultat].
+        As a [user type] I want [goal] so I can [outcome].
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Forslag til løsning / Proposed solution
+      description: Hvis du har en idé til hvordan / If you have an idea of how
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativer du har overvejet / Alternatives considered
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Hvor passer det ind? / Where does it fit?
+      options:
+        - Core dictation flow
+        - LM Studio modes
+        - Custom modes / extensibility
+        - Settings / UX polish
+        - Distribution / installation
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Identitets-tjek / Identity check
+      description: Hvilke kerneprincipper holder forslaget? / Which core principles does this respect?
+      options:
+        - label: Lokal-først (ingen ny cloud-afhængighed) / Local-first (no new cloud dependency)
+        - label: Dansk-først (ingen forringelse af dansk-oplevelsen) / Danish-first (no degradation of the Danish experience)
+        - label: Tastatur-drevet (ikke kun klikbart) / Keyboard-driven (not click-only)
+        - label: Komponerbar (kunne være en custom mode i stedet?) / Composable (could it be a custom mode instead?)

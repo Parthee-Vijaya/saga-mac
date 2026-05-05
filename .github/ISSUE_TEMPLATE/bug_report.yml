@@ -1,0 +1,83 @@
+name: 🐛 Bug report
+description: Noget virker ikke som forventet / Something doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tak fordi du tager dig tid til at rapportere en fejl. / Thanks for taking the time to report a bug.
+
+        Bemærk at Saga kører kun på Apple Silicon (M1+) med macOS 15.0+. Intel Macs er ikke understøttet.
+
+  - type: input
+    id: version
+    attributes:
+      label: Saga version
+      description: Find under "Saga → About" eller i status-bar-menuen / Find under "Saga → About" or in the status bar menu
+      placeholder: "v0.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 15.2 (Apple M2 Pro)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Hvad skete der? / What happened?
+      description: Beskriv hvad du gjorde og hvad der gik galt / Describe what you did and what went wrong
+      placeholder: |
+        1. Jeg holdt højre Option og sagde "..."
+        2. Forventede at ... men i stedet ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Hvad forventede du? / What did you expect?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: Feature-område / Feature area
+      multiple: false
+      options:
+        - Dictation (push-to-talk)
+        - Wake word ("Hej Saga")
+        - LM Studio modes (translate, summarize, etc.)
+        - Voice reminders
+        - Vision / screen analysis
+        - Document analysis
+        - Custom modes
+        - Settings / Setup wizard
+        - DMG installation / Gatekeeper
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics / logs
+      description: |
+        Eksportér via menubar-ikonet → "Export diagnostics…" hvis tilgængeligt, eller åbn Console.app og søg efter "Saga".
+        Export via the menubar icon → "Export diagnostics…" if available, or open Console.app and search for "Saga".
+      render: shell
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Bekræft / Confirm
+      options:
+        - label: Jeg har søgt eksisterende issues / I have searched existing issues
+          required: true
+        - label: Jeg kører på Apple Silicon (M1+) med macOS 15+ / I'm on Apple Silicon (M1+) with macOS 15+
+          required: true
