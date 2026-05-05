@@ -197,6 +197,9 @@ struct CompanionOverlayView: View {
 
     private var captions: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let error = companion.lastError, !error.isEmpty {
+                errorCaption(error)
+            }
             if !companion.currentUserPartial.isEmpty {
                 userCaption
             }
@@ -205,6 +208,7 @@ struct CompanionOverlayView: View {
             }
             if companion.currentUserPartial.isEmpty,
                companion.currentAssistantBuffer.isEmpty,
+               companion.lastError == nil,
                companion.state == .listening {
                 Text("Tal efter wake-word…")
                     .font(.system(size: 12))
@@ -213,6 +217,20 @@ struct CompanionOverlayView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func errorCaption(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundColor(.orange)
+                .padding(.top, 2)
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundColor(.orange)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var userCaption: some View {

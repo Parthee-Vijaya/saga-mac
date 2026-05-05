@@ -180,7 +180,7 @@ struct CompanionSettingsTab: View {
 
                 SettingsCard(
                     "Test",
-                    footer: testStatus ?? "Tryk for at høre Saga sige en kort frase med valgte engine + stemme."
+                    footer: testStatus ?? "Tryk TTS for at høre stemmen. Tryk Companion for at starte en test-conversation uden wake-word (kræver LM Studio kører)."
                 ) {
                     HStack {
                         Button {
@@ -192,10 +192,18 @@ struct CompanionSettingsTab: View {
                                     Text("Taler…")
                                 }
                             } else {
-                                Label("Sig 'Hej, jeg er Saga'", systemImage: "speaker.wave.2.fill")
+                                Label("Test TTS", systemImage: "speaker.wave.2.fill")
                             }
                         }
                         .disabled(testRunning)
+                        if controller.companion.enabled {
+                            Button {
+                                controller.companion.startSession()
+                            } label: {
+                                Label("Start test-conversation", systemImage: "bubble.left.and.bubble.right.fill")
+                            }
+                            .disabled(controller.companion.state != .idle)
+                        }
                         Spacer()
                     }
                 }

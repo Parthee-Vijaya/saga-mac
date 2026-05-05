@@ -92,6 +92,7 @@ public final class CompanionController: ObservableObject {
         session.reset()
         currentAssistantBuffer = ""
         currentUserPartial = ""
+        lastError = nil
         startNextTurn()
     }
 
