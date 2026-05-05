@@ -11,9 +11,19 @@ public final class CompanionController: ObservableObject {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "companion")
 
     public let session: CompanionSession
+    public let overlay: CompanionOverlayController
     private weak var saga: SagaController?
 
-    @Published public private(set) var state: CompanionState = .idle
+    @Published public private(set) var state: CompanionState = .idle {
+        didSet {
+            // Vis overlay ved aktiv samtale, dismiss når vi går idle.
+            if state == .idle, oldValue != .idle {
+                overlay.dismiss()
+            } else if state != .idle, oldValue == .idle {
+                overlay.show()
+            }
+        }
+    }
     @Published public private(set) var lastError: String?
 
     /// Live transcript af brugerens igangværende tur (vises i overlay/HUD i Sprint C3).
@@ -46,14 +56,19 @@ public final class CompanionController: ObservableObject {
     private var silenceStartedAt: Date?
     private var hasHeardSpeech: Bool = false
 
-    public init(session: CompanionSession = CompanionSession()) {
+    public init(
+        session: CompanionSession = CompanionSession(),
+        overlay: CompanionOverlayController = CompanionOverlayController()
+    ) {
         self.session = session
+        self.overlay = overlay
         self.enabled = UserDefaults.standard.bool(forKey: "companion.enabled")
     }
 
     /// Wire-up — kaldes fra SagaController.bootIfNeeded.
     public func attach(saga: SagaController) {
         self.saga = saga
+        overlay.attach(companion: self, audio: saga.audio)
     }
 
     // MARK: - Public API
