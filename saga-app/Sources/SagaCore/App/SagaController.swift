@@ -27,6 +27,7 @@ public final class SagaController: ObservableObject {
     public let vision: ScreenVision
     public let documents: DocumentAnalyzer
     public let wakeWord: WakeWordDetector
+    public let tts: TTSCoordinator
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -73,6 +74,7 @@ public final class SagaController: ObservableObject {
         self.vision = ScreenVision()
         self.documents = DocumentAnalyzer()
         self.wakeWord = WakeWordDetector()
+        self.tts = TTSCoordinator()
         self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
         self.wakeWordEnabled = UserDefaults.standard.bool(forKey: "wakeWordEnabled")
     }

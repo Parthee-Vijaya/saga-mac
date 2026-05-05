@@ -15,12 +15,14 @@ public struct SettingsView: View {
                 .tabItem { Label("Stemme", systemImage: "mic") }
             ModesSettingsTab()
                 .tabItem { Label("Modes", systemImage: "wand.and.stars") }
+            CompanionSettingsTab()
+                .tabItem { Label("Companion", systemImage: "bubble.left.and.bubble.right") }
             RemindersSettingsTab()
                 .tabItem { Label("Reminders", systemImage: "bell") }
             AboutTab()
                 .tabItem { Label("Om", systemImage: "info.circle") }
         }
-        .frame(width: 640, height: 580)
+        .frame(width: 640, height: 620)
     }
 }
 
