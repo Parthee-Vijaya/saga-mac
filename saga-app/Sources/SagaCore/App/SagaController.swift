@@ -194,13 +194,39 @@ public final class SagaController: ObservableObject {
 
         // Auto-configure hvis bruger ikke har sat noget custom OG den gemte
         // default ikke svarer (LM Studio kører måske på anden port end 1234).
+        // Vi vælger HVER første model der RENT FAKTISK kan loades — LM Studio's
+        // /v1/models lister alle tilgængelige models, ikke kun den loadede.
+        // En model der kræver mere RAM end systemet har vil fejle med 400 ved
+        // første brug. Vi pinger derfor hver model med et tiny test-call før
+        // vi auto-configurerer.
         if !savedConfigured {
             UserDefaults.standard.set(first.baseURL.absoluteString, forKey: "lmStudioBaseURL")
-            if let firstModel = first.models.first {
-                UserDefaults.standard.set(firstModel, forKey: "lmStudioModel")
+
+            // Prøv den allerede gemte model først hvis den er på discoverede endpoint
+            let savedModel = UserDefaults.standard.string(forKey: "lmStudioModel") ?? ""
+            var candidates = first.models
+            if !savedModel.isEmpty, let idx = candidates.firstIndex(of: savedModel) {
+                candidates.remove(at: idx)
+                candidates.insert(savedModel, at: 0)
             }
-            log.info("Auto-configured LM Studio: \(first.baseURL.absoluteString, privacy: .public)")
-            lmStudio.configure(baseURL: first.baseURL, model: first.models.first ?? "")
+
+            var workingModel: String?
+            for model in candidates {
+                if await lmStudio.canUseModel(baseURL: first.baseURL, model: model) {
+                    workingModel = model
+                    break
+                }
+                log.warning("LM Studio model '\(model, privacy: .public)' kan ikke loades — prøver næste")
+            }
+
+            if let workingModel {
+                UserDefaults.standard.set(workingModel, forKey: "lmStudioModel")
+                lmStudio.configure(baseURL: first.baseURL, model: workingModel)
+                log.info("Auto-configured LM Studio: \(first.baseURL.absoluteString, privacy: .public) model=\(workingModel, privacy: .public)")
+            } else {
+                lastError = "LM Studio fundet, men ingen af modellerne kunne loades. Vælg manuelt i Indstillinger → Stemme."
+                log.warning("Ingen loadable LM Studio model fundet")
+            }
         }
     }
 

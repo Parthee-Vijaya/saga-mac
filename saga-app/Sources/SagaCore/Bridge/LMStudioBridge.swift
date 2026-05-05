@@ -58,6 +58,32 @@ public final class LMStudioBridge: @unchecked Sendable {
         }
     }
 
+    /// Test om en model rent faktisk kan loades og svare. LM Studio's /v1/models
+    /// lister alle TILGÆNGELIGE modeller, ikke kun den/de loadede — modeller der
+    /// kræver mere RAM end systemet har vil fejle med 400 ved første brug.
+    /// Vi sender et minimal-prompt og tjekker for 200.
+    public func canUseModel(baseURL: URL, model: String) async -> Bool {
+        let url = baseURL.appendingPathComponent("chat/completions")
+        let payload: [String: Any] = [
+            "model": model,
+            "messages": [["role": "user", "content": "ok"]],
+            "max_tokens": 1,
+            "stream": false,
+        ]
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 30  // model-load kan tage tid
+        do {
+            req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            let (_, resp) = try await urlSession.data(for: req)
+            guard let http = resp as? HTTPURLResponse else { return false }
+            return (200...299).contains(http.statusCode)
+        } catch {
+            return false
+        }
+    }
+
     private static func probe(port: Int, session: URLSession) async -> DiscoveredEndpoint? {
         guard let url = URL(string: "http://127.0.0.1:\(port)/v1/models") else { return nil }
         var req = URLRequest(url: url)

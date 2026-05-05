@@ -24,10 +24,34 @@ public final class TTSCoordinator: ObservableObject {
     }
 
     /// ElevenLabs voice-ID. Persisteres i UserDefaults (offentlig identifier — ikke secret).
+    /// Sanitiseres ved set: voice-IDer er alfanumeriske strings (~20 chars).
+    /// Hvis input indeholder whitespace/punctuation eller er tom, falder vi
+    /// tilbage til default — dette beskytter mod corruption hvis cursor-inject
+    /// rammer voice-ID-feltet.
     @Published public var elevenLabsVoiceID: String {
         didSet {
+            let sanitized = Self.sanitizeVoiceID(elevenLabsVoiceID)
+            if sanitized != elevenLabsVoiceID {
+                elevenLabsVoiceID = sanitized
+                return  // didSet trigges igen med sanitized værdi
+            }
             UserDefaults.standard.set(elevenLabsVoiceID, forKey: "tts.elevenlabsVoiceID")
         }
+    }
+
+    /// Voice-IDer fra ElevenLabs er alfanumeriske, typisk 20 chars. Vi tillader
+    /// bindestreg + underscore for sikkerheds skyld men strikker whitespace
+    /// og alt andet ikke-alfanumerisk.
+    public static func sanitizeVoiceID(_ raw: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let cleaned = raw.unicodeScalars.filter { allowed.contains($0) }.map(Character.init)
+        let result = String(cleaned)
+        // Hvis input blev mauleret (>30% reduktion eller ender med ikke-default-suffix
+        // som "Hej Sega"), fall back til default
+        if result.isEmpty || result.count < 10 {
+            return defaultElevenLabsVoiceID
+        }
+        return result
     }
 
     /// Apple voice-identifier (fx "com.apple.voice.compact.da-DK.Sara").
@@ -47,8 +71,13 @@ public final class TTSCoordinator: ObservableObject {
 
     public init() {
         self.preferredEngineID = UserDefaults.standard.string(forKey: "tts.preferredEngine") ?? "apple"
-        self.elevenLabsVoiceID = UserDefaults.standard.string(forKey: "tts.elevenlabsVoiceID")
-            ?? Self.defaultElevenLabsVoiceID
+        let storedVoiceID = UserDefaults.standard.string(forKey: "tts.elevenlabsVoiceID") ?? ""
+        let cleaned = Self.sanitizeVoiceID(storedVoiceID)
+        self.elevenLabsVoiceID = cleaned
+        // Hvis sanitisering ændrede værdien, persistér det rensede med det samme
+        if cleaned != storedVoiceID {
+            UserDefaults.standard.set(cleaned, forKey: "tts.elevenlabsVoiceID")
+        }
         self.appleVoiceID = UserDefaults.standard.string(forKey: "tts.appleVoiceID")
             ?? (AppleTTSEngine.preferredDanishVoice() ?? "")
     }
