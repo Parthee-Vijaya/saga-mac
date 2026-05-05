@@ -29,6 +29,8 @@ public final class SagaController: ObservableObject {
     public let wakeWord: WakeWordDetector
     public let tts: TTSCoordinator
     public let companion: CompanionController
+    public let updates: UpdateManager
+    public let modelDownloader: ModelDownloader
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
@@ -77,6 +79,8 @@ public final class SagaController: ObservableObject {
         self.wakeWord = WakeWordDetector()
         self.tts = TTSCoordinator()
         self.companion = CompanionController()
+        self.updates = UpdateManager()
+        self.modelDownloader = ModelDownloader()
         self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
         self.wakeWordEnabled = UserDefaults.standard.bool(forKey: "wakeWordEnabled")
     }
@@ -113,6 +117,9 @@ public final class SagaController: ObservableObject {
 
         // Wire Companion til denne controller — den deler audio, asr, lmStudio, tts, vision.
         companion.attach(saga: self)
+
+        // Start Sparkle-update-checks (scheduled hver 24t pr. SUScheduledCheckInterval).
+        updates.start()
 
         // Wire wake-word callback med routing-branch:
         // - Hvis Companion er aktiveret i Settings → start voice-conversation
