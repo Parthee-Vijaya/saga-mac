@@ -1,8 +1,8 @@
 # Saga — Roadmap
 
-## Nuværende state (sidst opdateret 2026-05-04)
+## Nuværende state (sidst opdateret 2026-05-05)
 
-**Hvad virker end-to-end:** Hold Højre Option → tal dansk → tekst ved cursor (Canary CoreML, RTF ~0.14 warm).
+**Hvad virker end-to-end:** Hold ⌥ → dictation. Hold ⇧+⌥ → voice-edit. Sig "Hej Saga"/"Hej Jarvis" → Companion-conversation.
 
 **Faser merged til main:**
 
@@ -13,21 +13,23 @@
 | M1 (dictation pipeline) | ✅ done |
 | M2 (LM Studio modes — translate/format/summarize/vibecode/linkedin) | ✅ done |
 | M3 (voice-reminders via "mind mig om...") | ✅ done |
-| M3.B (wake-word "Hej Saga" via on-device SFSpeechRecognizer) | ✅ done |
+| M3.B (wake-word "Saga"/"Jarvis" via on-device SFSpeechRecognizer) | ✅ done |
 | M4 (vision — multi-modal LLM screen-capture) | ✅ done |
 | M5 (document-analysis — PDF/DOCX flagging) | ✅ done |
 | M6 (custom modes editor) | ✅ done |
 | M6.0 (stenograf-mode toggle) | ✅ done |
 | M7 (integrations) | ⏸ skipped per ønske |
 | M8 (DMG-distribution + INSTALL/SMOKE_TEST) | ✅ done |
+| **CLI-sprint** (TTS, Companion, settings-split, cursor-bubble, live-partial, per-app profiles) | ✅ done |
+| **Sprint B** (vocabulary, VAD auto-stop, voice-edit) | ✅ done |
+| **Voice-edit v2** (Shift+⌥, clipboard-fallback, Cmd+V paste, target-app re-aktivering, model-picker) | ✅ done |
 
-**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0).
-Næste DMG bygges når brugeren beder — næste release vil typisk være v0.3.0 med M6 + M3.B + Settings-redesign.
+**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0), v0.5.0 (CLI-sprint + Sprint B + voice-edit v2).
 
 **Næste muligheder:**
 - Sideprojekt: hviske-coreml (~10 dage) → drop-in upgrade fra Canary til Hviske
-- M3.B v2: VAD-baseret auto-stop i stedet for fixed 6s timer
-- M4 polish: history af screen-captures + custom prompt-templates pr. visions-trigger
+- LICENSE-beslutning hvis open-source senere
+- Sparkle-aktivering (placeholder-key skal udskiftes — pt. droppet for solo-tool)
 
 **Cross-Mac development:** se [README.md → "Continuing development"](../README.md#fortsætte-udvikling-fra-en-anden-mac).
 
@@ -283,9 +285,105 @@ Code-sign, notarize, .dmg, auto-update.
 
 **Acceptance:** `make release` producerer signeret notarized `Saga.dmg`.
 
-## Backlog (post-M8)
+## Backlog (post-v0.5.0)
 - Multi-language support beyond da/en
-- Whisper-large-v3 fallback hvis Hviske ikke kan loades
 - Cloud-backup af custom modes (E2E-encrypted)
 - iOS companion app (modes-sync via iCloud)
 - Plugin-system for community-modes
+- Sparkle auto-update aktivering (kræver SUPublicEDKey-genering, pt. droppet)
+- LICENSE-beslutning hvis open-source senere
+- hviske-coreml sideprojekt (~10 dage) — drop-in upgrade fra Canary
+
+---
+
+## CLI-sprint (done · 2026-05-05)
+
+Stort sprint udført fra anden Mac (CLI-only Claude Code, ingen Xcode), ~7000 linjer
+Swift fordelt på ~32 nye filer. Build verificeret efterfølgende på Xcode-Mac.
+
+### TTS infrastructure
+- [x] `TTSCoordinator` med engine-selection (Apple AVSpeechSynthesizer eller ElevenLabs)
+- [x] `AppleTTSEngine` — on-device, no-cost, default
+- [x] `ElevenLabsTTSEngine` — bedre kvalitet, kræver API-key i Keychain
+- [x] Voice-picker for Apple-stemmer (Sara, Magnus, Ida, Naja)
+- [x] Reachability-tjek + auto-fallback til Apple hvis ElevenLabs nede
+- [x] Voice-ID sanitization (forhindrer corruption fra cursor-inject)
+
+### Companion conversation
+- [x] `CompanionController` state-machine: idle → listening → transcribing → thinking → speaking
+- [x] `CompanionSession` med trim-logik (max-turn-pairs) + system-prompt
+- [x] Streaming `chatStream()` med SSE → `SentenceFlusher` deler ved punktum
+- [x] TTS starter ved første sætning i stedet for at vente på fuldt svar
+- [x] Live caption-overlay med transcript-historik (CompanionOverlay)
+- [x] Cursor-bubble: pulserende prik der følger musen mens Saga lytter
+- [x] Auto-end ved end-of-session-frase ("tak", "farvel", "stop") — bruger prefix-match
+- [x] Vision-context: screenshot vedhæftes user-tur hvis modellen er multi-modal
+
+### Settings split
+- [x] SettingsView refaktor til 7 separate tabs (Generelt/Stemme/Modes/Apps/Companion/Reminders/Om)
+- [x] Reusable building blocks (SettingsCard + SettingsRow)
+- [x] AboutTab med model-storage + update-card
+
+### Per-app profiles
+- [x] `AppProfile` med bundleId-binding + forcedModeId + stenografOverride
+- [x] AppProfileStore — JSON-persistens i UserDefaults
+- [x] AppProfilesSettingsTab UI — opret/edit profiles for installerede apps
+- [x] SagaController.applyForcedMode prepender mode-trigger ved transcribe-tid
+
+### Live partial transcript
+- [x] `LivePartialTranscriber` via SFSpeechRecognizer parallel med Canary
+- [x] Vises i Companion-overlay mens bruger taler
+- [x] Erstattes med Canary's authoritative transcript ved turn-end
+
+### Slim-DMG + ModelDownloader
+- [x] `ModelDownloader` med progress + resume + reset
+- [x] First-run flow: hvis mlpackages mangler i bundle, download fra GitHub Release-assets
+- [x] ModelStorageCard i AboutTab viser disk-brug + reset-knap
+
+## Sprint B (done · 2026-05-05)
+
+Power-user features fra parallel branch, rebased onto main efter CLI-sprint.
+
+### Vocabulary post-processor
+- [x] `VocabularyEntry` Codable struct (pattern, replacement, caseSensitive, wholeWord, enabled, notes)
+- [x] `VocabularyStore` med UserDefaults JSON-persistens
+- [x] `VocabularyPostProcessor` med regex-baseret apply (escapes specielle tegn)
+- [x] VocabularySettingsTab — entry-list, editor-modal, master enable, "Slet alle" med confirm
+- [x] Anvendes på alle Canary-transcripts FØR mode-routing + stenograf
+
+### VAD auto-stop
+- [x] `EnergyVAD` — energi-baseret silence detection
+- [x] `VADConfig` med silenceThreshold + silenceDuration + minRecordingDuration
+- [x] AudioCapture wires VAD callback → handleHoldEnd
+- [x] Settings-toggle + slider (0.5-3.0s tærskel)
+
+### Voice-edit (initial trigger-frase version)
+- [x] `EditMode` med "ret:"/"redigér:"/"rewrite:"/"edit:" triggers
+- [x] `SelectionReader` via AXUIElement (kAXSelectedTextAttribute)
+- [x] ModeRouter integration: special-cased før mode-matching, falder til normal hvis ingen selection
+- [x] Strict system-prompt: "Returnér KUN den redigerede tekst"
+
+## Voice-edit v2 (done · 2026-05-05)
+
+Trigger-fraser viste sig fragile: ASR transkriberer "ret kolon" som ord, ikke
+som ":". Iteration efter real-world test i Claude-app.
+
+- [x] **Shift+⌥ som trigger** — eksplicit modifier i stedet for trigger-frase
+- [x] HotkeyManager.onHoldStart får shiftHeld-bool, læser `flags.contains(.maskShift)` på CGEvent
+- [x] **Clipboard-fallback** for Electron-apps (Claude, Slack, VSCode, Notion) der ikke
+      eksponerer kAXSelectedText: simulér Cmd+C, læs pasteboard, gendan oprindeligt indhold
+- [x] **Cmd+V paste** i stedet for unicode-keyboard-injection — pålideligt i Electron-apps
+- [x] **Target-app re-aktivering** — husk frontmost PID ved hold-start, bring forrest før paste
+      (brugeren kan kigge på LM Studio under tænkning uden at miste fokus)
+- [x] **HUD viser "Redigerer…"** under hele LM Studio-tænkning (op til 60s for store models)
+- [x] **Reasoning-only response detection** — gemma-thinking-modeller spiser hele max_tokens på
+      reasoning_content. LMStudioBridge throws specifik fejl med konkret guide til fix
+- [x] **max_tokens=8192** for EditMode (default 2048 var for lidt med reasoning-modeller)
+- [x] **Model-picker** i VoiceSettingsTab — radio-buttons for alle modeller fundet på det aktive
+      LM Studio-endpoint, klik = øjeblikkelig reconfigure uden restart
+
+## v0.5.0 — Release (done · 2026-05-05)
+
+DMG bygget med alle ovenstående features. 1.7 GB med bundlede mlpackages.
+Cumulativt fra v0.2.0: CLI-sprint + Sprint B + voice-edit v2 + jarvis-wake + tak-detection
++ saga-sidecar slettet + Sparkle deaktiveret (placeholder-key).

@@ -6,37 +6,68 @@ Mac-native voice assistant til dansk dictation og AI-modes.
 
 > **LM Studio er IKKE nødvendig** for almindelig brug. Saga's dictation-funktion
 > (push-to-talk → dansk tekst ved cursor) kører fuldt lokalt på Apple Silicon.
-> LM Studio er kun en **valgfri tilføjelse** for AI-modes (oversæt, opsummer, formatér)
-> — disse kommer i M2 og er endnu ikke aktiveret.
+> LM Studio er kun en **valgfri tilføjelse** for AI-modes (oversæt, opsummer, formatér,
+> voice-edit, Companion-samtaler).
 
-> **Status M8 done** — DMG-distribution klar.
-> Se [docs/ROADMAP.md](docs/ROADMAP.md) for hvad der er næste.
+> **Status v0.5.0** — feature-komplet: dictation + 7 modes + wake-word + voice-edit
+> + Companion conversation. Se [docs/ROADMAP.md](docs/ROADMAP.md) for fuld faseliste.
 
 ## Hvad virker lige nu (verificeret)
 
+**Dictation + cursor-injection (kerne):**
 - ✅ Hold-til-tal hotkey (Højre Option, virker på Apple-keyboard og Logitech MX-serien)
 - ✅ Audio capture via AVAudioRecorder — robust på Built-in mic, AirPods, USB
 - ✅ Live waveform-HUD med tidstæller under recording
 - ✅ Dansk speech-to-text via NVIDIA Canary-1b-v2 (CoreML/ANE) — RTF ~0.14 efter warmup
-- ✅ Tekst inserted ved cursor i hvilken som helst app (TextEdit, Notes, browser, terminal/Claude Code, Slack, …)
+- ✅ Tekst inserted ved cursor i hvilken som helst app (TextEdit, Notes, browser, Slack, …)
+- ✅ VAD auto-stop — Saga stopper selv ved stilhed, ingen hold-til-tale nødvendig (toggle i Settings)
+- ✅ Vocabulary post-processor — egen ordbog der retter ASR-fejl (Settings → Ordforråd)
+- ✅ Stenograf-mode — ren dictation, ingen LLM-routing
+
+**Voice-edit (Shift+⌥):**
+- ✅ Markér tekst i hvilken som helst app, hold ⇧+⌥, tal instruktion → markeringen overskrives
+- ✅ Virker i Electron-apps (Claude, Slack, VSCode, Notion) via clipboard-fallback
+- ✅ Genaktiverer original app før paste — kan tjekke LM Studio under tænkning uden at miste fokus
+
+**Modes (kræver LM Studio):**
+- ✅ Oversæt / Format / Opsummer / Vibecode / LinkedIn / Reminder / Vision
+- ✅ Document-analyse — drop PDF/DOCX i HUD'et → flag binding-perioder, fortrydelses-frister
+- ✅ Custom modes editor i Settings (egne triggers + system-prompts + temperatur)
+- ✅ Per-app profiler — fx forced "format"-mode i Notes, stenograf i Mail
+- ✅ Model-picker — skift hurtigt mellem alle modeller fundet i LM Studio
+
+**Wake-word + Companion:**
+- ✅ "Saga" eller "Jarvis" som wake-word (on-device SFSpeechRecognizer)
+- ✅ Companion-conversation: efter wake-word → flydende dialog med live caption-overlay
+- ✅ TTS svar via Apple AVSpeechSynthesizer eller ElevenLabs (valgfrit)
+- ✅ Auto-end ved "tak" / "farvel" / "stop"
+- ✅ Cursor-bubble — lille pulserende prik under cursor mens Saga lytter
+
+**System:**
 - ✅ Status-bar app med live health-status, transkriberings-historik og søgning
 - ✅ Persistent transkript-historik (`~/Library/Application Support/Saga/history.json`, max 100 entries)
 - ✅ Stabil Apple Development signing — TCC-permissions overlever rebuilds
+- ✅ Slim-DMG — Canary-modeller downloades ved første start (sparer plads i DMG)
+- ✅ First-run wizard — onboarding med permission-flow
 
-## Hvad der mangler (roadmap)
+## Roadmap
 
 | Fase | Beskrivelse | Status |
 |---|---|---|
-| **M0** | Scaffold + grund-arkitektur | ✅ done |
-| **M0.D** | Pivot ASR til Canary CoreML (Hviske droppet) | ✅ done |
-| **M0.E-G** | AVAudioRecorder + Apple-keyboard fix + waveform-HUD | ✅ done |
-| **M2** | LM Studio modes (oversæt/format/opsummer/vibecode/LinkedIn) | ⚪ next |
-| **M3** | "Hey Saga" wake-word + voice-reminders | ⚪ |
-| **M4** | Vision (skærm-analyse via multi-modal LLM) | ⚪ |
-| **M5** | Document analysis (PDF/DOCX flagging af binding-perioder etc.) | ⚪ |
-| **M6** | Custom modes editor i Settings | ⚪ |
-| **M7** | Integrations (n8n/Make/Apple Kalender/Sheets) | ⚪ |
-| **M8** | Distribution (DMG, notarization, Sparkle auto-update) | ⚪ |
+| **M0–M0.G** | Scaffold, ASR-pivot til Canary, AVAudioRecorder, signing, waveform-HUD | ✅ done |
+| **M1** | Dictation-pipeline end-to-end | ✅ done |
+| **M2** | LM Studio modes (oversæt/format/opsummer/vibecode/linkedin) | ✅ done |
+| **M3** | Voice-reminders | ✅ done |
+| **M3.B** | Wake-word "Hej Saga" via SFSpeechRecognizer | ✅ done |
+| **M4** | Vision (multi-modal LLM screen-capture) | ✅ done |
+| **M5** | Document-analyse (PDF/DOCX flagging) | ✅ done |
+| **M6** | Custom modes editor | ✅ done |
+| **M6.0** | Stenograf-mode toggle | ✅ done |
+| **M7** | Integrations (n8n/Kalender/Sheets) | ⏸ skipped per ønske |
+| **M8** | DMG distribution + notarization-scaffolding | ✅ done |
+| **CLI-sprint** | TTS (Apple+ElevenLabs), Companion conversation, settings-split, cursor-bubble, live-partial, per-app profiles | ✅ done |
+| **Sprint B** | Vocabulary post-processor, VAD auto-stop, voice-edit | ✅ done |
+| **Voice-edit v2** | Shift+⌥ trigger, clipboard-fallback for Electron-apps, target-app re-aktivering, model-picker | ✅ done |
 | **Sideprojekt** | hviske-coreml — Hviske → CoreML for bedre dansk-WER | ⚪ ~10 dage |
 
 ## Arkitektur
@@ -53,7 +84,7 @@ ASR kører fuldt **on-device** — ingen audio forlader maskinen, ingen netværk
 nødvendig. LM Studio er **kun valgfri** og bruges udelukkende hvis du vil have
 mode-routing (oversæt/opsummer/formatér).
 
-Se [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for moduldiagram + dataflow.
+Se [docs/ROADMAP.md](docs/ROADMAP.md) for fuld faseliste + per-fase commit-hashes.
 
 ## Hardware-krav (Mac)
 
@@ -136,7 +167,7 @@ Repo'et er privat, så download kræver authentication. Vælg én af:
 ```bash
 brew install gh
 gh auth login
-gh release download v0.1.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
+gh release download v0.5.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
 open Saga-0.1.0.dmg
 ```
 
@@ -148,7 +179,7 @@ export GH_TOKEN="ghp_din_token_her"
 
 # Find asset-id'et
 ASSET_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.1.0" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.5.0" \
   | grep '"id"' | head -2 | tail -1 | grep -oE '[0-9]+')
 
 # Hent DMG (følg redirect til S3)
@@ -162,7 +193,7 @@ open Saga-0.1.0.dmg
 
 ### Eller via browser
 
-Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.1.0) →
+Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.5.0) →
 træk Saga.app til Applications.
 
 Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin guide inkl. Gatekeeper-bypass og
@@ -251,23 +282,39 @@ Test DMG'en på en frisk Mac vha. [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md).
 
 ## Brug
 
+### Dictation (kerne)
+
 1. Åbn Saga via Spotlight (`Cmd+Space → Saga`). Status-bar-ikon dukker op.
 2. Sæt cursor i hvilket-som-helst tekstfelt (Notes, Mail, Slack, Claude Code, …)
 3. **Hold Højre Option (`⌥`)** → tal dansk → slip → tekst indsættes
 4. Klik status-bar-ikonet for live status, sidste 5 transkriptioner og indstillinger
-5. Cmd+Click historik-vinduet for søgning + kopier-til-clipboard
 
-## Modes (M2 — kommer, valgfrit)
+### Voice-edit (⇧+⌥)
 
-> Modes kræver LM Studio. Hvis du kun bruger Saga til dictation, kan du springe
-> dette afsnit over.
+1. Markér tekst i hvilken som helst app (Notes, Mail, Claude, Slack, VSCode, Notion, …)
+2. **Hold ⇧+⌥** → tal instruktion ("gør det mere formelt", "fix typos", "skriv som LinkedIn-post")
+3. Slip → markeringen overskrives med det redigerede svar
 
-I et fremtidigt release vil "trigger-ord" route output gennem en lokal LM Studio:
+Saga genaktiverer din originale app før indsætning, så du kan tjekke LM Studio's
+progress under tænkning uden at miste fokus.
+
+### Modes (kræver LM Studio)
+
+Trigger-ord routes output gennem din lokale LM Studio:
 
 - "oversæt til engelsk: hej verden" → "Hello world"
 - "opsummer: [lang dansk tekst]" → 2-sætnings TL;DR
 - "linkedin: vi annoncerede X" → polished LinkedIn-post
-- "kode: en API der henter vejret" → engelsk prompt til Lovable/Claude Code
+- "vibecode: en API der henter vejret" → engelsk prompt klar til Claude Code
+- "vision: hvad ser jeg" → analyserer aktivt vindue
+- "mind mig om at ringe til Mor i morgen kl 14" → opretter macOS-notifikation
+
+### Wake-word + Companion
+
+1. Aktivér i Settings → Stemme → "Aktivér 'Saga'/'Jarvis'"
+2. Sig **"Hej Saga"** eller **"Hej Jarvis"** → Saga starter en samtale
+3. Tal frit, Saga svarer via TTS med live caption-overlay
+4. Sig **"tak"** / **"farvel"** / **"stop"** → samtalen slutter
 
 ## Privacy
 
