@@ -578,6 +578,14 @@ public final class SagaController: ObservableObject {
                             durationMs: transcript.durationMs,
                             inferenceMs: transcript.inferenceMs
                         ))
+                        state = .idle
+                        hud.dismissWithToast(
+                            words: edited.split(whereSeparator: { $0.isWhitespace }).count,
+                            latencyMs: transcript.inferenceMs,
+                            engine: "LM Studio"
+                        )
+                        wakeWord.resumeAfterRecording()
+                        return
                     } catch {
                         log.warning("EditMode fejlede: \(error.localizedDescription, privacy: .public) — skriver instruktion som rå dictation")
                         lastError = "Edit fejlede: \(error.localizedDescription)"
@@ -617,7 +625,11 @@ public final class SagaController: ObservableObject {
                             inferenceMs: transcript.inferenceMs
                         ))
                         state = .idle
-                        hud.dismiss()
+                        hud.dismissWithToast(
+                            words: result.split(whereSeparator: { $0.isWhitespace }).count,
+                            latencyMs: transcript.inferenceMs,
+                            engine: "LM Studio"
+                        )
                         wakeWord.resumeAfterRecording()
                         return
                     } catch {
@@ -631,16 +643,21 @@ public final class SagaController: ObservableObject {
 
                 if effectiveStenograf {
                     // Stenograf-mode: skip alt mode-routing, gå direkte til cursor.
-                    cursor.type(correctedText.trimmingCharacters(in: .whitespacesAndNewlines))
+                    let cleanText = correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    cursor.type(cleanText)
                     history.append(TranscriptEntry(
                         rawText: transcript.text,
-                        processedText: correctedText.trimmingCharacters(in: .whitespacesAndNewlines),
+                        processedText: cleanText,
                         modeId: nil,
                         durationMs: transcript.durationMs,
                         inferenceMs: transcript.inferenceMs
                     ))
                     state = .idle
-                    hud.dismiss()
+                    hud.dismissWithToast(
+                        words: cleanText.split(whereSeparator: { $0.isWhitespace }).count,
+                        latencyMs: transcript.inferenceMs,
+                        engine: lastEngineLabel ?? (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech")
+                    )
                     wakeWord.resumeAfterRecording()
                     return
                 }
@@ -677,7 +694,13 @@ public final class SagaController: ObservableObject {
                 ))
 
                 state = .idle
-                hud.dismiss()
+                hud.dismissWithToast(
+                    words: result.text.split(whereSeparator: { $0.isWhitespace }).count,
+                    latencyMs: transcript.inferenceMs,
+                    engine: result.mode != nil
+                        ? "LM Studio"
+                        : (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech")
+                )
                 wakeWord.resumeAfterRecording()
             } catch {
                 log.error("Pipeline fejlede: \(error.localizedDescription)")

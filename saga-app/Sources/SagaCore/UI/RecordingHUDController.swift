@@ -56,7 +56,30 @@ public final class RecordingHUDController {
         model.errorMessage = nil
         model.recordingStart = nil
         model.activeMode = nil
+        model.completionToast = nil
         removeEscMonitor()
+    }
+
+    /// Vis stats-toast i HUD i 1.5s og dismiss derefter. Bruges efter
+    /// succesfulde transkriptioner i stedet for direkte dismiss().
+    public func dismissWithToast(words: Int, latencyMs: Int, engine: String) {
+        guard window != nil else {
+            // HUD er allerede væk — bare normal cleanup
+            dismiss()
+            return
+        }
+        model.completionToast = RecordingHUDModel.CompletionToast(
+            words: words,
+            latencyMs: latencyMs,
+            engine: engine
+        )
+        // Cleanup recording-state men behold vinduet synligt under toast
+        model.recordingStart = nil
+        model.activeMode = nil
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            self?.dismiss()
+        }
     }
 
     /// Global keyDown-monitor for esc — kaldes mens recording er aktiv så
@@ -135,9 +158,19 @@ final class RecordingHUDModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var recordingStart: Date? = nil
     @Published var activeMode: Mode? = nil
+    @Published var completionToast: CompletionToast? = nil
 
     enum HUDState {
         case idle, recording, transcribing, routing
+    }
+
+    /// Stats vist i 1.5s toast efter en transkription er færdig.
+    /// Erstatter waveform/partial-area så bruger kan se ord-tæller +
+    /// latency + engine før HUD dismisses.
+    struct CompletionToast: Equatable {
+        let words: Int
+        let latencyMs: Int
+        let engine: String
     }
 }
 
@@ -180,7 +213,11 @@ struct RecordingHUDView: View {
             // Row 2: full-width waveform/visualizer
             // Row 3: logo venstre | timer center | keyboard-pills højre
             VStack(spacing: SagaSpacing.xs) {
-                if model.state == .recording, !controller.currentPartial.isEmpty {
+                if let toast = model.completionToast {
+                    // Toast erstatter normal layout i 1.5s efter transcribe
+                    completionToastView(toast)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                } else if model.state == .recording, !controller.currentPartial.isEmpty {
                     // Live partial-transcript ovenover waveform. Auto-scroller
                     // til bunden + nye ord highlightes accent i ~700ms.
                     ScrollViewReader { proxy in
@@ -218,26 +255,59 @@ struct RecordingHUDView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                visualizer
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 38)
-                    .padding(.top, SagaSpacing.sm)
-                    .padding(.horizontal, 2)  // næsten kant-til-kant for waveform
+                if model.completionToast == nil {
+                    visualizer
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .padding(.top, SagaSpacing.sm)
+                        .padding(.horizontal, 2)  // næsten kant-til-kant for waveform
 
-                Divider()
-                    .background(SagaColors.border)
-                    .opacity(0.6)
+                    Divider()
+                        .background(SagaColors.border)
+                        .opacity(0.6)
 
-                bottomBar
-                    .padding(.horizontal, SagaSpacing.sm)
+                    bottomBar
+                        .padding(.horizontal, SagaSpacing.sm)
+                }
             }
             .padding(.vertical, SagaSpacing.sm)
             .animation(.easeInOut(duration: 0.15), value: controller.currentPartial)
+            .animation(.easeInOut(duration: 0.2), value: model.completionToast)
         }
         // Outer padding giver de små shadows plads til at fade rundt om HUD.
         // 12pt er nok når glow-radius er 6 (drop shadow er 12 men trækker mod y+4).
         .padding(SagaSpacing.md)
         .preferredColorScheme(.dark)
+    }
+
+    /// Toast-row der erstatter waveform/partial efter en succesfuld
+    /// transkription. Viser ord-tæller, latency og engine-badge.
+    private func completionToastView(_ toast: RecordingHUDModel.CompletionToast) -> some View {
+        HStack(spacing: SagaSpacing.md) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(SagaColors.success)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(toast.words) \(toast.words == 1 ? "ord" : "ord") indsat")
+                    .font(SagaTypography.bodyEmphasis)
+                    .foregroundColor(SagaColors.textPrimary)
+                HStack(spacing: 6) {
+                    Text(formatLatency(toast.latencyMs))
+                        .font(SagaTypography.mono)
+                        .foregroundColor(SagaColors.textSecondary)
+                    Text("·")
+                        .foregroundColor(SagaColors.textTertiary)
+                    if !toast.engine.isEmpty {
+                        EngineBadge(label: toast.engine)
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, SagaSpacing.lg)
+        .padding(.vertical, SagaSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var bottomBar: some View {
