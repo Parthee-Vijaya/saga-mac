@@ -3,262 +3,379 @@ import AppKit
 import ApplicationServices
 import SwiftUI
 
-/// Onboarding-vindue der vises ved første launch. Hjælper brugeren igennem
-/// de tre setup-trin: hotkey-valg, mikrofon-permission, accessibility-permission.
-/// LM Studio-detection kører i baggrunden og vises som status — ikke required.
+/// Onboarding-vindue der vises ved første launch — single-step guided flow
+/// inspireret af Superwhisper. 5 trin: Velkommen → Permissions → Mic-test →
+/// Hotkey → LM Studio. Hvert trin har én klar handling.
 public struct FirstRunWindow: View {
     @EnvironmentObject private var controller: SagaController
     @AppStorage("firstRunComplete") private var firstRunComplete: Bool = false
     @AppStorage("hotkey") private var hotkeyRaw: String = Hotkey.rightOption.rawValue
 
+    @State private var step: WizardStep = .welcome
     @State private var micStatus: AVAuthorizationStatus = .notDetermined
     @State private var hasAX: Bool = false
+    @State private var lmStudioEnabled: Bool = true
+
+    public enum WizardStep: Int, CaseIterable {
+        case welcome
+        case permissions
+        case micTest
+        case hotkey
+        case lmStudio
+
+        var title: String {
+            switch self {
+            case .welcome: return "Velkommen til Saga"
+            case .permissions: return "Lad os sætte permissions op"
+            case .micTest: return "Test din mikrofon"
+            case .hotkey: return "Vælg din push-to-talk-tast"
+            case .lmStudio: return "Vil du tilslutte LM Studio?"
+            }
+        }
+    }
 
     public init() {}
 
     public var body: some View {
         VStack(spacing: 0) {
-            header
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    welcomeStep
-                    hotkeyStep
-                    permissionsStep
-                    lmStudioStep
-                }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 24)
-            }
+            WizardProgressBar(currentStep: step.rawValue, totalSteps: WizardStep.allCases.count)
+                .padding(.horizontal, SagaSpacing.xxl)
+                .padding(.top, SagaSpacing.xl)
+
+            // Step content
+            stepContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, SagaSpacing.xxl)
+
+            // Footer
             footer
+                .padding(.horizontal, SagaSpacing.xxl)
+                .padding(.bottom, SagaSpacing.xl)
+                .padding(.top, SagaSpacing.lg)
         }
-        .frame(width: 560, height: 660)
+        .frame(width: 540, height: 620)
+        .background(SagaColors.background)
+        .preferredColorScheme(.dark)
         .task { refresh() }
         .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in
             refresh()
+            // Hvis bruger granter mic via system-prompt, advance auto fra
+            // permissions-step (ellers føles det stuck)
+        }
+        .onAppear {
+            if step == .micTest { controller.audio.start() }
+        }
+        .onDisappear {
+            controller.audio.stop()
         }
     }
 
-    // MARK: - Header
+    @ViewBuilder
+    private var stepContent: some View {
+        switch step {
+        case .welcome: welcomeContent
+        case .permissions: permissionsContent
+        case .micTest: micTestContent
+        case .hotkey: hotkeyContent
+        case .lmStudio: lmStudioContent
+        }
+    }
 
-    private var header: some View {
-        VStack(spacing: 12) {
+    // MARK: - Welcome
+
+    private var welcomeContent: some View {
+        VStack(spacing: SagaSpacing.xl) {
+            Spacer()
+
             Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color(red: 0.2, green: 0.55, blue: 0.95), Color(red: 0.4, green: 0.7, blue: 1.0)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-            Text("Velkommen til Saga")
-                .font(.system(size: 22, weight: .bold))
-            Text("Mac-native voice assistant til dansk dictation")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-        }
-        .padding(.top, 28)
-        .padding(.bottom, 20)
-        .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial)
-    }
+                .font(.system(size: 80, weight: .light))
+                .foregroundStyle(SagaColors.accentGradient)
+                .sagaShadow(.glow)
 
-    // MARK: - Steps
+            VStack(spacing: SagaSpacing.sm) {
+                Text(WizardStep.welcome.title)
+                    .font(SagaTypography.display)
+                    .foregroundColor(SagaColors.textPrimary)
 
-    private var welcomeStep: some View {
-        StepCard(number: 1, title: "Sådan virker det", icon: "info.circle") {
-            VStack(alignment: .leading, spacing: 8) {
-                BulletText("Hold push-to-talk-tasten ned")
-                BulletText("Tal en sætning på dansk")
-                BulletText("Slip tasten — teksten indsættes ved cursor")
-                Text("Alt kører lokalt på din Mac. Ingen audio forlader maskinen.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
+                Text("Mac-native voice assistant til dansk dictation.\nAlt kører lokalt — ingen audio forlader din maskine.")
+                    .font(SagaTypography.body)
+                    .foregroundColor(SagaColors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
             }
+
+            Spacer()
         }
     }
 
-    private var hotkeyStep: some View {
-        StepCard(number: 2, title: "Vælg push-to-talk-tast", icon: "keyboard") {
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("", selection: $hotkeyRaw) {
-                    ForEach(Hotkey.allCases, id: \.rawValue) { key in
-                        Text(key.displayName).tag(key.rawValue)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .onChange(of: hotkeyRaw) { _, _ in
-                    controller.hotkeys.stopListening()
-                    controller.hotkeys.startListening()
-                }
+    // MARK: - Permissions
 
-                if let key = Hotkey(rawValue: hotkeyRaw), key == .fn {
-                    HelpHint(
-                        text: "Fn / globe virker kun på Apple-keyboards. Hvis du bruger Logitech eller en anden producent, vælg Højre Option.",
-                        icon: "exclamationmark.triangle.fill",
-                        color: .orange
-                    )
-                }
-            }
-        }
-    }
+    private var permissionsContent: some View {
+        VStack(alignment: .leading, spacing: SagaSpacing.xl) {
+            heading(WizardStep.permissions.title)
 
-    private var permissionsStep: some View {
-        StepCard(number: 3, title: "Permissions", icon: "lock.shield") {
-            VStack(alignment: .leading, spacing: 12) {
-                PermissionRow(
-                    title: "Mikrofon",
-                    detail: micStatus == .authorized ? "Tilladt" : "Saga skal bruge mikrofonen til at lytte",
+            VStack(spacing: SagaSpacing.lg) {
+                NewPermissionRow(
+                    icon: "mic.fill",
+                    title: "Tillad mikrofon-adgang",
+                    detail: micStatus == .authorized
+                        ? "Tilladt"
+                        : "Påkrævet for at fange tale til transkribering. Bruges kun under recording.",
                     granted: micStatus == .authorized,
-                    action: micStatus == .notDetermined ? {
-                        controller.requestMicrophonePermissionIfNeeded()
-                    } : {
-                        controller.openMicrophoneSettings()
-                    },
+                    action: micStatus == .notDetermined
+                        ? { controller.requestMicrophonePermissionIfNeeded() }
+                        : { controller.openMicrophoneSettings() },
                     actionLabel: micStatus == .notDetermined ? "Tillad" : "Åbn Settings"
                 )
 
-                PermissionRow(
-                    title: "Accessibility",
-                    detail: hasAX ? "Tilladt" : "Bruges til at registrere push-to-talk-tasten og indsætte tekst",
+                NewPermissionRow(
+                    icon: "accessibility",
+                    title: "Tillad Accessibility-adgang",
+                    detail: hasAX
+                        ? "Tilladt"
+                        : "Bruges til at registrere push-to-talk-tasten og indsætte tekst ved cursor. Kun aktiv ved behov.",
                     granted: hasAX,
                     action: { controller.openAccessibilitySettings() },
                     actionLabel: hasAX ? "Skift" : "Åbn Settings"
                 )
-
-                if !hasAX {
-                    HelpHint(
-                        text: "I System Settings: find Saga i listen og toggle ON. Saga opdager det automatisk inden for 2 sekunder.",
-                        icon: "info.circle.fill",
-                        color: .blue
-                    )
-                }
             }
+
+            if !hasAX {
+                Text("I System Settings: find Saga i listen og toggle ON. Saga opdager det automatisk.")
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textTertiary)
+            }
+
+            Spacer()
         }
+        .padding(.top, SagaSpacing.xl)
     }
 
-    private var lmStudioStep: some View {
-        StepCard(number: 4, title: "LM Studio (valgfri)", icon: "cpu") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("LM Studio bruges kun til mode-routing (oversæt, opsummer osv.). Pure dictation virker uden.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+    // MARK: - Mic test
 
+    private var micTestContent: some View {
+        VStack(alignment: .leading, spacing: SagaSpacing.xl) {
+            VStack(alignment: .leading, spacing: SagaSpacing.sm) {
+                heading(WizardStep.micTest.title)
+                Text("Tal og se om bølgerne reagerer.\nIngen respons? Tjek din input-enhed i System Settings.")
+                    .font(SagaTypography.body)
+                    .foregroundColor(SagaColors.textSecondary)
+                    .lineSpacing(2)
+            }
+
+            // Live waveform
+            MicTestWaveform(levels: controller.audio.levelHistory)
+                .frame(height: 140)
+                .padding(SagaSpacing.lg)
+                .background(
+                    RoundedRectangle(cornerRadius: SagaRadii.large)
+                        .fill(SagaColors.surface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: SagaRadii.large)
+                                .strokeBorder(SagaColors.border, lineWidth: 1)
+                        )
+                )
+
+            HStack(spacing: SagaSpacing.sm) {
+                Image(systemName: "headphones")
+                    .foregroundColor(SagaColors.accent)
+                Text("System default")
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
+            }
+
+            Spacer()
+        }
+        .padding(.top, SagaSpacing.xl)
+        .onAppear { controller.audio.start() }
+        .onDisappear { controller.audio.stop() }
+    }
+
+    // MARK: - Hotkey
+
+    private var hotkeyContent: some View {
+        VStack(alignment: .leading, spacing: SagaSpacing.xl) {
+            VStack(alignment: .leading, spacing: SagaSpacing.sm) {
+                heading(WizardStep.hotkey.title)
+                Text("Hold tasten ned mens du taler. Slip når du er færdig — så indsættes teksten ved cursor.")
+                    .font(SagaTypography.body)
+                    .foregroundColor(SagaColors.textSecondary)
+                    .lineSpacing(2)
+            }
+
+            VStack(spacing: SagaSpacing.sm) {
+                ForEach(Hotkey.allCases, id: \.rawValue) { key in
+                    HotkeyOption(
+                        hotkey: key,
+                        isSelected: hotkeyRaw == key.rawValue
+                    ) {
+                        hotkeyRaw = key.rawValue
+                        controller.hotkeys.stopListening()
+                        controller.hotkeys.startListening()
+                    }
+                }
+            }
+
+            if let key = Hotkey(rawValue: hotkeyRaw), key == .fn {
+                HStack(spacing: SagaSpacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(SagaColors.warning)
+                    Text("Fn / globe virker kun på Apple-keyboards. Vælg Højre Option for Logitech og andre.")
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textSecondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.top, SagaSpacing.xl)
+    }
+
+    // MARK: - LM Studio
+
+    private var lmStudioContent: some View {
+        VStack(alignment: .leading, spacing: SagaSpacing.xl) {
+            VStack(alignment: .leading, spacing: SagaSpacing.sm) {
+                heading(WizardStep.lmStudio.title)
+                Text("LM Studio kører store modeller lokalt og åbner Saga's modes (oversæt, opsummer, voice-edit, Companion). Pure dictation virker uden.")
+                    .font(SagaTypography.body)
+                    .foregroundColor(SagaColors.textSecondary)
+                    .lineSpacing(2)
+            }
+
+            HStack(spacing: SagaSpacing.lg) {
+                ChoiceCard(
+                    icon: "waveform",
+                    title: "Kun lokal dictation",
+                    subtitle: "Hold ⌥, tal, slip. Ingen LLM nødvendig.",
+                    isSelected: !lmStudioEnabled,
+                    action: { lmStudioEnabled = false }
+                )
+
+                ChoiceCard(
+                    icon: "cpu",
+                    title: "Lokal + LM Studio",
+                    subtitle: "Modes, voice-edit, Companion-samtaler.",
+                    isSelected: lmStudioEnabled,
+                    action: { lmStudioEnabled = true }
+                )
+            }
+
+            if lmStudioEnabled {
                 if controller.isDiscoveringLMStudio {
-                    HStack(spacing: 8) {
+                    HStack(spacing: SagaSpacing.sm) {
                         ProgressView().controlSize(.small)
                         Text("Søger efter LM Studio…")
-                            .font(.system(size: 12))
+                            .font(SagaTypography.caption)
+                            .foregroundColor(SagaColors.textSecondary)
                     }
                 } else if let first = controller.discoveredEndpoints.first {
-                    HelpHint(
-                        text: "Fundet på localhost:\(first.port) med \(first.models.count) model(ler).",
-                        icon: "checkmark.circle.fill",
-                        color: .green
-                    )
+                    HStack(spacing: SagaSpacing.sm) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(SagaColors.success)
+                        Text("Fundet på localhost:\(first.port) med \(first.models.count) model(ler).")
+                            .font(SagaTypography.caption)
+                            .foregroundColor(SagaColors.textSecondary)
+                    }
                 } else {
-                    HStack(spacing: 8) {
-                        HelpHint(
-                            text: "Ingen LM Studio fundet. Du kan installere senere fra lmstudio.ai og klikke 'Find igen' i Indstillinger.",
-                            icon: "info.circle",
-                            color: .secondary
-                        )
+                    HStack(spacing: SagaSpacing.sm) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(SagaColors.textTertiary)
+                        Text("Ingen LM Studio fundet. Start den fra lmstudio.ai og klik 'Søg igen'.")
+                            .font(SagaTypography.caption)
+                            .foregroundColor(SagaColors.textSecondary)
                         Spacer()
                         Button("Søg igen") {
                             Task { await controller.discoverLMStudio() }
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .buttonStyle(SagaButtonStyle.secondaryCompact)
                     }
                 }
             }
+
+            Spacer()
         }
+        .padding(.top, SagaSpacing.xl)
     }
 
-    // MARK: - Footer
+    // MARK: - Heading + footer
+
+    private func heading(_ text: String) -> some View {
+        Text(text)
+            .font(SagaTypography.title)
+            .foregroundColor(SagaColors.textPrimary)
+    }
 
     private var footer: some View {
-        HStack {
-            Button("Spring over") {
-                complete()
+        VStack(spacing: SagaSpacing.sm) {
+            Button(action: advance) {
+                Text(primaryButtonLabel)
             }
-            .buttonStyle(.borderless)
-            Spacer()
-            Button(canFinish ? "Kom i gang →" : "Granté permissions først") {
-                complete()
-            }
+            .buttonStyle(SagaButtonStyle.primary)
+            .disabled(!canAdvance)
             .keyboardShortcut(.defaultAction)
-            .controlSize(.large)
-            .disabled(!canFinish)
+
+            if step != .welcome && step != .lmStudio {
+                Button("Spring over") {
+                    advance()
+                }
+                .buttonStyle(SagaButtonStyle.ghost)
+            }
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 16)
-        .background(.ultraThinMaterial)
     }
 
-    private var canFinish: Bool {
-        micStatus == .authorized && hasAX
+    private var primaryButtonLabel: String {
+        switch step {
+        case .welcome: return "Kom i gang"
+        case .permissions: return canAdvance ? "Fortsæt setup" : "Granté mikrofon først"
+        case .micTest: return "Fortsæt"
+        case .hotkey: return "Fortsæt"
+        case .lmStudio: return "Færdig"
+        }
+    }
+
+    private var canAdvance: Bool {
+        switch step {
+        case .welcome: return true
+        case .permissions: return micStatus == .authorized  // AX kan skip'es
+        case .micTest, .hotkey, .lmStudio: return true
+        }
+    }
+
+    private func advance() {
+        if let next = WizardStep(rawValue: step.rawValue + 1) {
+            // Stop mic-recording når vi forlader micTest
+            if step == .micTest { controller.audio.stop() }
+            // Start mic-recording når vi entrer micTest
+            if next == .micTest { controller.audio.start() }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                step = next
+            }
+        } else {
+            complete()
+        }
     }
 
     private func complete() {
+        controller.audio.stop()
         firstRunComplete = true
-        // Find vinduet vi sidder i og luk det
-        for win in NSApp.windows where win.contentViewController is NSHostingController<AnyView>
-            || win.title == "Velkommen til Saga" {
+        for win in NSApp.windows where win.title == "Velkommen til Saga" {
             win.close()
         }
     }
 
     private func refresh() {
-        micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        hasAX = AXIsProcessTrusted()
+        let newMic = AVCaptureDevice.authorizationStatus(for: .audio)
+        let newAX = AXIsProcessTrusted()
+        if newMic != micStatus { micStatus = newMic }
+        if newAX != hasAX { hasAX = newAX }
     }
 }
 
 // MARK: - Reusable subviews
 
-struct StepCard<Content: View>: View {
-    let number: Int
-    let title: String
+private struct NewPermissionRow: View {
     let icon: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0.2, green: 0.55, blue: 0.95).opacity(0.15))
-                        .frame(width: 28, height: 28)
-                    Text("\(number)")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(Color(red: 0.2, green: 0.55, blue: 0.95))
-                }
-                Image(systemName: icon)
-                    .foregroundColor(.secondary)
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            content()
-                .padding(.leading, 38)
-        }
-    }
-}
-
-struct BulletText: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("•").foregroundColor(.secondary)
-            Text(text).font(.system(size: 13))
-        }
-    }
-}
-
-struct PermissionRow: View {
     let title: String
     let detail: String
     let granted: Bool
@@ -266,37 +383,124 @@ struct PermissionRow: View {
     let actionLabel: String
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: granted ? "checkmark.circle.fill" : "circle")
-                .foregroundColor(granted ? .green : .secondary)
-                .font(.system(size: 18))
+        HStack(spacing: SagaSpacing.lg) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .medium))
+                .foregroundColor(granted ? SagaColors.success : SagaColors.accent)
+                .frame(width: 40, height: 40)
+                .background(
+                    Circle().fill((granted ? SagaColors.success : SagaColors.accent).opacity(0.15))
+                )
+
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .medium))
+                Text(title)
+                    .font(SagaTypography.bodyEmphasis)
+                    .foregroundColor(SagaColors.textPrimary)
                 Text(detail)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+
+            Spacer(minLength: SagaSpacing.md)
+
             Button(actionLabel, action: action)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(granted ? SagaButtonStyle.secondaryCompact : SagaButtonStyle.secondaryCompact)
         }
     }
 }
 
-struct HelpHint: View {
-    let text: String
-    let icon: String
-    let color: Color
+private struct HotkeyOption: View {
+    let hotkey: Hotkey
+    let isSelected: Bool
+    let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
-                .foregroundColor(color)
-                .font(.system(size: 12))
-            Text(text)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+        Button(action: action) {
+            HStack(spacing: SagaSpacing.md) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .foregroundColor(isSelected ? SagaColors.accent : SagaColors.textTertiary)
+                Text(hotkey.displayName)
+                    .font(SagaTypography.body)
+                    .foregroundColor(SagaColors.textPrimary)
+                Spacer()
+            }
+            .padding(.horizontal, SagaSpacing.lg)
+            .padding(.vertical, SagaSpacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: SagaRadii.medium)
+                    .fill(isSelected ? SagaColors.accentSubtle : SagaColors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: SagaRadii.medium)
+                            .strokeBorder(isSelected ? SagaColors.accentBorder : SagaColors.border, lineWidth: 1)
+                    )
+            )
         }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ChoiceCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: SagaSpacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundColor(isSelected ? SagaColors.accent : SagaColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, SagaSpacing.sm)
+
+                VStack(alignment: .leading, spacing: SagaSpacing.xs) {
+                    Text(title)
+                        .font(SagaTypography.bodyEmphasis)
+                        .foregroundColor(SagaColors.textPrimary)
+                    Text(subtitle)
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(SagaSpacing.lg)
+            .background(
+                RoundedRectangle(cornerRadius: SagaRadii.large)
+                    .fill(isSelected ? SagaColors.accentSubtle : SagaColors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: SagaRadii.large)
+                            .strokeBorder(isSelected ? SagaColors.accentBorder : SagaColors.border, lineWidth: isSelected ? 1.5 : 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MicTestWaveform: View {
+    let levels: [Float]
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<levels.count, id: \.self) { idx in
+                    Capsule()
+                        .fill(SagaColors.accentGradient)
+                        .frame(width: 4, height: barHeight(for: levels[idx], maxHeight: geo.size.height))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .animation(.spring(response: 0.18, dampingFraction: 0.7), value: levels)
+        }
+    }
+
+    private func barHeight(for level: Float, maxHeight: CGFloat) -> CGFloat {
+        let boosted = pow(CGFloat(level), 0.7)
+        let scaled = max(4, boosted * maxHeight)
+        return min(maxHeight, scaled)
     }
 }

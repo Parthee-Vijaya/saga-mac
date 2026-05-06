@@ -110,7 +110,7 @@ public enum SagaSpacing {
 }
 
 /// Shadow-presets til hævede flader.
-public struct SagaShadow {
+public struct SagaShadow: Sendable {
     public let color: Color
     public let radius: CGFloat
     public let x: CGFloat
