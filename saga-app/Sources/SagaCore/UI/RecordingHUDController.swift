@@ -150,13 +150,15 @@ struct RecordingHUDView: View {
     var body: some View {
         ZStack {
             // Frosted-glass HUD: rent .thinMaterial uden tint. Kun en tynd
-            // accent-kant — ingen glow rundt om.
+            // accent-kant — opacity reagerer på audio-volume under recording.
             RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
                 .fill(.thinMaterial)
                 .overlay(
-                    // Tydelig accent-border som "neon-tråd" rundt om HUD
+                    // Audio-reactive border: opacity scales fra 0.4 (stille)
+                    // til 0.9 (taler højt). Idle/transcribing: fast 0.6.
                     RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
-                        .strokeBorder(SagaColors.accent.opacity(0.6), lineWidth: 1.2)
+                        .strokeBorder(SagaColors.accent.opacity(borderOpacity), lineWidth: 1.2)
+                        .animation(.easeOut(duration: 0.18), value: borderOpacity)
                 )
                 // Soft drop shadow til afstandsfornemmelse fra skrivebord
                 .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 4)
@@ -274,6 +276,19 @@ struct RecordingHUDView: View {
     /// før transcribe er startet. Baseret på activeLanguage.
     private var activeEngineHint: String {
         controller.activeLanguage.usesCanary ? "Canary" : "Apple Speech"
+    }
+
+    /// Audio-reactive border opacity: under recording følger den den seneste
+    /// audio-level (rolling average af de sidste 5 samples) for at give HUD
+    /// en "alive" pulserende kant. Andre states: fast 60% opacity.
+    private var borderOpacity: Double {
+        guard model.state == .recording else { return 0.6 }
+        let recent = audio.levelHistory.suffix(5)
+        guard !recent.isEmpty else { return 0.4 }
+        let avg = recent.reduce(0, +) / Float(recent.count)
+        // Map 0.0..0.5 → 0.35..0.95 (mild kompression af loud signals)
+        let normalized = min(1.0, Double(avg) * 2.0)
+        return 0.35 + normalized * 0.6
     }
 
     private func formatLatency(_ ms: Int) -> String {
