@@ -4,7 +4,7 @@
 
 **Hvad virker end-to-end:** Hold ⌥ → dansk/engelsk/tamilsk dictation med live transkript i HUD. Hold ⇧+⌥ → voice-edit. Sig fx "...skriv det som email" mid-dictation → inline AI-kommando. Sig "Hej Saga"/"Hej Jarvis" → Companion-conversation. Filler-strip + vocabulary fix automatisk transcript før indsætning.
 
-**v0.7.0** tilføjede Wispr-Flow-inspireret cleanup-layer (filler-strip + inline AI-kommandoer) + live partial transcribe i HUD + multilingual ASR med tamilsk + designpolish af HUD.
+**v0.8.0** tilføjede TranscriptionStats med ord/tegn/lyd-tid/RTF i Settings → Om, live engine-badge ("🔒 Canary"/"Apple Speech"/"LM Studio") + mic-badge i HUD, og 6 designforbedringer i HUD'et (symmetrisk waveform, audio-reactive kant, word-by-word highlight, gradient fade i scroll, idle breathing, stats-toast efter transcribe).
 
 **Faser merged til main:**
 
@@ -27,8 +27,9 @@
 | **Voice-edit v2** (Shift+⌥, clipboard-fallback, Cmd+V paste, target-app re-aktivering, model-picker) | ✅ done |
 | **Design-redesign** (Superwhisper-inspired: dark-first tokens, kompakt HUD med hvid waveform + rød REC + keyboard-pills, single-step guided wizard, omvendt-trekant logo) | ✅ done |
 | **Wispr-Flow-cleanup** (filler-removal, inline AI-kommandoer, live partial transcribe i HUD, multilingual ASR med tamilsk + 10 EU-sprog, HUD-polish: tynd accent-kant + blødere transparency) | ✅ done |
+| **Stats + HUD-polish v2** (TranscriptionStats i Settings → Om, engine-badge + mic-badge i HUD, 6 designforbedringer: symmetrisk waveform, idle breathing, audio-reactive kant, word-by-word highlight, gradient fade, stats-toast) | ✅ done |
 
-**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0), v0.5.0 (CLI-sprint + Sprint B + voice-edit v2), v0.6.0 (Design-redesign + omvendt-trekant logo), v0.7.0 (Wispr-Flow-cleanup + multilingual + live HUD).
+**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0), v0.5.0 (CLI-sprint + Sprint B + voice-edit v2), v0.6.0 (Design-redesign + omvendt-trekant logo), v0.7.0 (Wispr-Flow-cleanup + multilingual + live HUD), v0.8.0 (Stats + HUD-polish v2).
 
 **Næste muligheder:**
 - Sideprojekt: hviske-coreml (~10 dage) → drop-in upgrade fra Canary til Hviske
@@ -541,3 +542,63 @@ DMG bygget med Wispr-Flow-cleanup + multilingual + live HUD + design-polish.
 Cumulativt fra v0.6.0: filler-strip, inline AI-kommandoer, live transcribe
 i HUD, tamilsk + 10 EU-sprog, og HUD med tynd accent-kant + transparent
 glas-følelse.
+
+## Stats + HUD-polish v2 (done · 2026-05-06)
+
+12 commits efter v0.7.0 fokuseret på statistik-feature og HUD-finpudsning.
+
+### Transcription stats
+- [x] `TranscriptionStats` Codable struct med totalWords, totalCharacters,
+      totalAudioSeconds, totalRecordings, totalInferenceMs, firstUsedAt,
+      lastUsedAt. Computed: averageInferenceSeconds, realTimeFactor (RTF)
+- [x] `TranscriptionStatsStore`: @MainActor ObservableObject med JSON-
+      persistens i UserDefaults. record() opdaterer ved hver successful
+      transcribe; reset() til "Nulstil"-knap
+- [x] SagaController @Published lastTranscribeMs + lastEngineLabel sat
+      ved hver transcribe-completion
+- [x] StatsCard i Settings → Om med ord/tegn/lyd-tid/optagelser/latens/RTF/
+      siden + grøn "Alt processet lokalt — 0 bytes sendt til skyen"-row
+- [x] Footer: "Alt transcriberet 100% lokalt på din Mac"
+
+### Engine + mic-badges i HUD
+- [x] `EngineBadge` view: lille kapsel "🔒 Canary"/"Apple Speech"/"LM Studio"
+      med accent-tint baggrund (12% opacity) + 30% border. Lock-ikon
+      signalerer at engine kører lokalt + tooltip på hover
+- [x] `MicrophoneBadge` view: "🎤 AirPods Pro"/"MacBook Pro"/etc. White-
+      tint baggrund. Smart label-shortening (fjern "Microphone"/"(USB)"-
+      suffix). lineLimit(2) + maxWidth 110 så lange device-navne wrapper
+- [x] AudioCapture.currentInputDeviceName via AVCaptureDevice.default.
+      Computed property — opdateres automatisk ved mic-skift
+- [x] Bottom-bar status i 2 linjer: timer øverst, [Engine] [Mic] nederst
+
+### 6 HUD designforbedringer
+- [x] **#1 Symmetrisk waveform fra center-linje** — bars vokser fra
+      center op + ned med ±8% mikro-variation. Subtil 0.5pt accent-tinted
+      center-line. Top-capsule fuld accent, bottom 85% opacity for dybde
+- [x] **#2 Idle breathing** — pulserende capsule (35-65% opacity, 85-100%
+      scale) over 4-sek cycle (autoreverses). Signalerer "Saga er klar"
+- [x] **#3 Audio-reactive accent-kant** — opacity scales 35-95% med
+      rolling avg af sidste 5 audio-samples. Easeout 0.18s animation
+- [x] **#4 Gradient fade i partial-text** — LinearGradient mask gør
+      øverste linjer i scroll til 0-40% opacity → "tekst kommer fra bunden"
+- [x] **#5 Word-by-word highlight** — String.commonPrefix detekterer nye
+      ord i partial. AttributedString render hvor suffix er accent-farvet
+      i ~700ms før fade til hvid via highlightTask Task.sleep
+- [x] **#6 Stats-toast efter transcribe** — RecordingHUDModel.CompletionToast
+      struct + dismissWithToast(words:latencyMs:engine:). HUD bevares 1.5s
+      efter cursor.type med ✓ "N ord indsat · 850ms · 🔒 Canary"
+
+### Layout-polish
+- [x] Stop-pille fjernet (slip af hotkey er naturlig stop)
+- [x] Kun esc/Annuller-pille under recording (mindre kendt funktion)
+- [x] MicrophoneBadge bruger RoundedRectangle (radius 8) i stedet for
+      Capsule (Capsule giver oval-form ved 2-linje content)
+- [x] Bottom-bar VStack med timer øverst + badges nederst i HStack
+
+## v0.8.0 — Release (done · 2026-05-06)
+
+DMG bygget med stats-feature + 6 HUD-designforbedringer + engine/mic-badges.
+Cumulativt fra v0.7.0: TranscriptionStats med RTF/word-counter, engine-
+badge med lock-ikon der signalerer lokal-først, mic-badge med smart
+device-name-cleanup, og polishet HUD med symmetrisk waveform + word-
+highlight + idle breathing + completion-toast.
