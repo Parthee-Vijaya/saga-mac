@@ -498,22 +498,29 @@ struct ShimmerBars: View {
 // MARK: - Engine badge (vises ved siden af timer/status i HUD)
 
 /// Lille badge der viser hvilken engine bliver brugt: "Canary" / "Apple
-/// Speech" / "LM Studio". Stiliseret som lille kapsel med subtle accent-tint.
+/// Speech" / "LM Studio". Lock-ikon signalerer at engine kører lokalt —
+/// ingen audio/tekst sendes til skyen. Stiliseret som lille kapsel med
+/// subtle accent-tint.
 struct EngineBadge: View {
     let label: String
 
     var body: some View {
-        Text(label)
-            .font(.system(size: 9, weight: .semibold, design: .rounded))
-            .foregroundColor(SagaColors.accent)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                Capsule()
-                    .fill(SagaColors.accent.opacity(0.12))
-                    .overlay(
-                        Capsule().strokeBorder(SagaColors.accent.opacity(0.3), lineWidth: 0.5)
-                    )
-            )
+        HStack(spacing: 3) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 7, weight: .semibold))
+            Text(label)
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+        }
+        .foregroundColor(SagaColors.accent)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(SagaColors.accent.opacity(0.12))
+                .overlay(
+                    Capsule().strokeBorder(SagaColors.accent.opacity(0.3), lineWidth: 0.5)
+                )
+        )
+        .help("Kører lokalt på din Mac — ingen audio eller tekst sendes til skyen")
     }
 }

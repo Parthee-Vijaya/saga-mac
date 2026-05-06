@@ -64,7 +64,7 @@ struct StatsCard: View {
     var body: some View {
         SettingsCard(
             "Statistik",
-            footer: "Akkumulerede tal siden første brug. Kun aggregerede counters — ingen tekst-indhold gemmes her."
+            footer: "Alt transcriberet 100% lokalt på din Mac (Canary CoreML + Apple Neural Engine). Kun aggregerede counters gemmes — ingen tekst-indhold eller audio."
         ) {
             let s = statsStore.stats
             VStack(alignment: .leading, spacing: 8) {
@@ -86,6 +86,17 @@ struct StatsCard: View {
                     Divider().padding(.vertical, 2)
                     StatsRow(label: "Siden", value: dateFormatter.string(from: first))
                 }
+                Divider().padding(.vertical, 2)
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.green)
+                    Text("Alt processet lokalt — 0 bytes sendt til skyen")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.green)
+                    Spacer()
+                }
+                .padding(.top, 4)
                 if s.totalRecordings > 0 {
                     Divider().padding(.vertical, 4)
                     HStack {
