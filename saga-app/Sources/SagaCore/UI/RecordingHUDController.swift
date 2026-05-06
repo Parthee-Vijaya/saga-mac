@@ -334,7 +334,8 @@ struct RecordingHUDView: View {
     private var statusText: some View {
         switch model.state {
         case .recording:
-            HStack(spacing: SagaSpacing.xs + 2) {
+            VStack(spacing: 3) {
+                // Linje 1: timer
                 TimelineView(.periodic(from: .now, by: 0.1)) { context in
                     let elapsed = model.recordingStart.map { context.date.timeIntervalSince($0) } ?? 0
                     Text(formatTime(elapsed))
@@ -342,20 +343,27 @@ struct RecordingHUDView: View {
                         .foregroundColor(SagaColors.textPrimary)
                         .monospacedDigit()
                 }
-                EngineBadge(label: controller.lastEngineLabel ?? activeEngineHint)
-                MicrophoneBadge(deviceName: audio.currentInputDeviceName)
+                // Linje 2: engine + mic badges side om side
+                HStack(spacing: 4) {
+                    EngineBadge(label: controller.lastEngineLabel ?? activeEngineHint)
+                    MicrophoneBadge(deviceName: audio.currentInputDeviceName)
+                }
             }
         case .transcribing, .routing:
-            HStack(spacing: SagaSpacing.xs + 2) {
-                Text(title)
-                    .font(SagaTypography.caption)
-                    .foregroundColor(SagaColors.textSecondary)
-                if let ms = controller.lastTranscribeMs {
-                    Text("\(formatLatency(ms))")
-                        .font(SagaTypography.mono)
-                        .foregroundColor(SagaColors.textPrimary)
-                        .monospacedDigit()
+            VStack(spacing: 3) {
+                // Linje 1: status + latency
+                HStack(spacing: SagaSpacing.xs + 2) {
+                    Text(title)
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textSecondary)
+                    if let ms = controller.lastTranscribeMs {
+                        Text(formatLatency(ms))
+                            .font(SagaTypography.mono)
+                            .foregroundColor(SagaColors.textPrimary)
+                            .monospacedDigit()
+                    }
                 }
+                // Linje 2: engine-badge (hvis sat)
                 if let engine = controller.lastEngineLabel {
                     EngineBadge(label: engine)
                 }
