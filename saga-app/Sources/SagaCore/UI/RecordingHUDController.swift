@@ -166,17 +166,18 @@ struct RecordingHUDView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 38)
                     .padding(.top, SagaSpacing.sm)
+                    .padding(.horizontal, 2)  // næsten kant-til-kant for waveform
 
                 Divider()
                     .background(SagaColors.border)
                     .opacity(0.6)
 
                 bottomBar
+                    .padding(.horizontal, SagaSpacing.sm)
             }
-            .padding(.horizontal, SagaSpacing.md)
             .padding(.vertical, SagaSpacing.sm)
         }
-        .padding(SagaSpacing.sm)
+        .padding(SagaSpacing.xs)  // outer padding 8 → 4 for at fjerne dead space
         .preferredColorScheme(.dark)
     }
 
@@ -208,7 +209,7 @@ struct RecordingHUDView: View {
                 let elapsed = model.recordingStart.map { context.date.timeIntervalSince($0) } ?? 0
                 Text(formatTime(elapsed))
                     .font(SagaTypography.mono)
-                    .foregroundColor(SagaColors.accent)
+                    .foregroundColor(SagaColors.textPrimary)
                     .monospacedDigit()
             }
         default:
@@ -233,20 +234,13 @@ struct RecordingHUDView: View {
     private var indicator: some View {
         switch model.state {
         case .idle:
-            // Saga's lille trekant-logo (matcher Superwhisper's bottom-left logo)
+            // Saga's lille logo (matcher Superwhisper's bottom-left logo)
             Image(systemName: "waveform.circle.fill")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(SagaColors.accentGradient)
         case .recording:
-            Circle()
-                .fill(SagaColors.accent)
-                .frame(width: 8, height: 8)
-                .overlay(
-                    Circle()
-                        .stroke(SagaColors.accent.opacity(0.4), lineWidth: 4)
-                        .scaleEffect(2.2)
-                        .opacity(0.6)
-                )
+            // Rød pulserende dot — universel "REC"-indikator
+            RecordingDot()
         case .transcribing:
             Image(systemName: "waveform")
                 .font(.system(size: 13, weight: .semibold))
@@ -308,11 +302,10 @@ struct WaveformBars: View {
     let levels: [Float]
     let accent: Color
 
-    /// Antal bar-elementer. Superwhisper-stil: mange tynde bars i stedet for
-    /// få fede bars for et mere "audio-meter"-look.
-    private let barCount: Int = 80
+    /// Antal bar-elementer. Tæt audio-meter-look som Superwhisper.
+    private let barCount: Int = 100
     private let barWidth: CGFloat = 1.5
-    private let barSpacing: CGFloat = 2
+    private let barSpacing: CGFloat = 1.5
 
     var body: some View {
         GeometryReader { geo in
@@ -322,33 +315,83 @@ struct WaveformBars: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .mask(
+                // Fade-out i kanterne — bars i randen er svagere
+                LinearGradient(
+                    colors: [.clear, .white, .white, .clear],
+                    startPoint: .leading, endPoint: .trailing
+                )
+            )
         }
     }
 
     @ViewBuilder
     private func barView(for index: Int, height: CGFloat) -> some View {
         let level = sampledLevel(at: index)
-        // Minimum 0.05 så stille tale stadig giver synlige bars (vis altid lidt aktivitet)
-        let boosted = pow(CGFloat(max(0.05, level)), 0.65)
-        // Bar-højden er centreret om midten — så de udvider sig op og ned
+        // Per-bar deterministisk variation så hver bar har sin egen "personlighed"
+        // — ikke alle bars har samme højde selv ved samme audio-level
+        let variation = perBarVariation(at: index)
+        let boosted = pow(CGFloat(max(0.05, level)), 0.6) * variation
         let barHeight = max(2, height * boosted)
 
         Capsule(style: .continuous)
             .fill(accent)
             .frame(width: barWidth, height: barHeight)
-            .animation(.spring(response: 0.2, dampingFraction: 0.75), value: barHeight)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: barHeight)
+    }
+
+    /// Pseudo-random men deterministic variation per bar-index — giver waveform
+    /// et naturligt "audio-spectrum"-look hvor bars ikke alle er ens høje.
+    /// Bars i midten har lidt højere baseline; bars i kanten lidt lavere.
+    private func perBarVariation(at index: Int) -> CGFloat {
+        let normalized = Double(index) / Double(max(1, barCount - 1))
+        // Center-bias: bars i midten får større variation
+        let centerBias = 1.0 - abs(normalized - 0.5) * 0.6
+        // Pseudo-random noise per index
+        let noise = abs(sin(Double(index) * 12.9898) * 43758.5453)
+        let fractional = noise - floor(noise)  // 0..1
+        let randVariation = 0.65 + 0.35 * fractional  // 0.65..1.0
+        return CGFloat(centerBias * randVariation)
     }
 
     private func sampledLevel(at barIndex: Int) -> Float {
         guard !levels.isEmpty else { return 0 }
-        // Sub-sample levels-arrayet for at matche barCount.
-        // Hvis levels er kortere, repeat; hvis længere, downsample.
+        // Sub-sample levels-arrayet for at matche barCount med interpolation
+        // mellem naboer for blødere overgange.
         let progress = Double(barIndex) / Double(max(1, barCount - 1))
-        let levelIdx = Int(progress * Double(levels.count - 1))
-        if levelIdx >= 0 && levelIdx < levels.count {
-            return levels[levelIdx]
+        let exactIdx = progress * Double(levels.count - 1)
+        let lowIdx = Int(exactIdx)
+        let highIdx = min(lowIdx + 1, levels.count - 1)
+        let frac = Float(exactIdx - Double(lowIdx))
+        if lowIdx >= 0 && highIdx < levels.count {
+            return levels[lowIdx] * (1 - frac) + levels[highIdx] * frac
         }
         return 0
+    }
+}
+
+// MARK: - Recording dot (rød pulserende REC-indikator)
+
+struct RecordingDot: View {
+    @State private var pulsing = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(SagaColors.danger.opacity(0.35))
+                .frame(width: 18, height: 18)
+                .scaleEffect(pulsing ? 1.2 : 0.8)
+                .opacity(pulsing ? 0 : 0.7)
+            Circle()
+                .fill(SagaColors.danger)
+                .frame(width: 9, height: 9)
+        }
+        .frame(width: 18, height: 18)
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
+                pulsing = true
+            }
+        }
     }
 }
 
@@ -357,9 +400,9 @@ struct WaveformBars: View {
 struct ShimmerBars: View {
     let accent: Color
 
-    private let barCount: Int = 80
+    private let barCount: Int = 100
     private let barWidth: CGFloat = 1.5
-    private let barSpacing: CGFloat = 2
+    private let barSpacing: CGFloat = 1.5
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
@@ -377,6 +420,12 @@ struct ShimmerBars: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .mask(
+                    LinearGradient(
+                        colors: [.clear, .white, .white, .clear],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                )
             }
         }
     }
