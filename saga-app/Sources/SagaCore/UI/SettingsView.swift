@@ -28,7 +28,9 @@ public struct SettingsView: View {
             AboutTab()
                 .tabItem { Label("Om", systemImage: "info.circle") }
         }
-        .frame(width: 640, height: 620)
+        .frame(width: 720, height: 680)
+        .background(SagaColors.background)
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -47,31 +49,31 @@ struct SettingsCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: SagaSpacing.xs + 2) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.secondary)
+                .font(SagaTypography.label)
+                .foregroundColor(SagaColors.textTertiary)
                 .textCase(.uppercase)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, SagaSpacing.xs)
 
             VStack(alignment: .leading, spacing: 0) {
                 content()
             }
-            .padding(14)
+            .padding(SagaSpacing.lg)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.windowBackgroundColor))
+                RoundedRectangle(cornerRadius: SagaRadii.large)
+                    .fill(SagaColors.surface)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: SagaRadii.large)
+                            .strokeBorder(SagaColors.border, lineWidth: 1)
                     )
             )
 
             if let footer {
                 Text(footer)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 4)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textTertiary)
+                    .padding(.horizontal, SagaSpacing.xs)
                     .padding(.top, 2)
             }
         }
@@ -90,20 +92,22 @@ struct SettingsRow<Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: SagaSpacing.md) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .medium))
+                Text(title)
+                    .font(SagaTypography.bodyEmphasis)
+                    .foregroundColor(SagaColors.textPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 12)
+            Spacer(minLength: SagaSpacing.md)
             trailing()
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, SagaSpacing.sm)
     }
 }
 
