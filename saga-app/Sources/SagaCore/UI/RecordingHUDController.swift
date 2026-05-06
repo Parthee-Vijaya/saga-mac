@@ -150,8 +150,7 @@ struct RecordingHUDView: View {
     var body: some View {
         ZStack {
             // Frosted-glass HUD: rent .thinMaterial uden tint. Kun en tynd
-            // accent-kant og en lille tæt glow så HUD virker "lyser op" uden
-            // at fylde et stort felt rundt om sig.
+            // accent-kant — ingen glow rundt om.
             RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
                 .fill(.thinMaterial)
                 .overlay(
@@ -161,9 +160,6 @@ struct RecordingHUDView: View {
                 )
                 // Soft drop shadow til afstandsfornemmelse fra skrivebord
                 .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 4)
-                // Tæt accent-glow tæt på kanten — kun radius 6 så det følger
-                // HUD'ens afrundede form uden at danne en firkantet "blok"
-                .shadow(color: SagaColors.accent.opacity(0.5), radius: 6, x: 0, y: 0)
 
             // Layout (Superwhisper-stil):
             // Row 1 (kun under recording, hvis partial findes): live transcript
