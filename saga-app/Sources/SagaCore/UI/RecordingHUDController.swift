@@ -737,36 +737,39 @@ struct EngineBadge: View {
 struct MicrophoneBadge: View {
     let deviceName: String
 
-    /// Forkort lange device-navne så badge ikke fylder for meget.
+    /// Rens lange Apple-suffix-strings så de ikke fylder unødvendigt.
     /// "MacBook Pro Microphone" → "MacBook Pro"
     /// "External Microphone (USB)" → "External"
-    private var shortLabel: String {
-        let cleaned = deviceName
+    private var cleanedLabel: String {
+        deviceName
             .replacingOccurrences(of: " Microphone", with: "")
             .replacingOccurrences(of: " (built-in)", with: "")
             .replacingOccurrences(of: " (USB)", with: "")
-        // Hvis stadig over 18 chars, klip
-        if cleaned.count > 18 {
-            return String(cleaned.prefix(15)) + "…"
-        }
-        return cleaned
     }
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(alignment: .center, spacing: 3) {
             Image(systemName: "mic.fill")
                 .font(.system(size: 7, weight: .semibold))
-            Text(shortLabel)
+            Text(cleanedLabel)
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 110, alignment: .leading)
         }
         .foregroundColor(SagaColors.textSecondary)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(
-            Capsule()
+            // Brug RoundedRectangle (ikke Capsule) når 2 linjer — Capsule
+            // giver underlig oval-form ved tall content. RoundedRectangle
+            // wraps pænt om både 1 og 2 lines.
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.white.opacity(0.08))
                 .overlay(
-                    Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
                 )
         )
         .help("Aktiv mikrofon: \(deviceName)")
