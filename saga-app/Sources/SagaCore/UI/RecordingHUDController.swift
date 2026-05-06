@@ -149,18 +149,18 @@ struct RecordingHUDView: View {
 
     var body: some View {
         ZStack {
-            // Frosted-glass HUD: ultraThinMaterial bagved + tyndt mørkt tint
-            // ovenover for læsbarhed. Mere transparent end før så skrivebord/
-            // app skinner igennem.
+            // Frosted-glass HUD: ultraThinMaterial alene + meget let tint for
+            // dark-mode-feel uden at slukke for blur'en. Skrivebord/app
+            // skinner tydeligt igennem.
             RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
-                        .fill(SagaColors.surfaceElevated.opacity(0.55))
+                        .fill(Color.black.opacity(0.18))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
-                        .strokeBorder(SagaColors.border.opacity(0.7), lineWidth: 1)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
                 )
                 .sagaShadow(.medium)
 
