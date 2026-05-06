@@ -105,6 +105,17 @@ public final class SagaController: ObservableObject {
         }
     }
 
+    /// Inline AI-kommandoer: hvis bruger siger fx "...skriv det som email"
+    /// til sidst i dictation, splitter Saga content fra instruktion og kører
+    /// LM Studio. Kræver LM Studio konfigureret. Default ON.
+    /// Hvis LM Studio er nede: trigger ignoreres, rå dictation indsættes.
+    @Published public var inlineEditEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(inlineEditEnabled, forKey: "inlineEditEnabled")
+            log.info("Inline AI-kommandoer: \(self.inlineEditEnabled ? "TIL" : "FRA", privacy: .public)")
+        }
+    }
+
     public init() {
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
@@ -137,6 +148,11 @@ public final class SagaController: ObservableObject {
             self.stripFillerWords = saved
         } else {
             self.stripFillerWords = true
+        }
+        if let saved = UserDefaults.standard.object(forKey: "inlineEditEnabled") as? Bool {
+            self.inlineEditEnabled = saved
+        } else {
+            self.inlineEditEnabled = true
         }
     }
 
@@ -492,6 +508,42 @@ public final class SagaController: ObservableObject {
                     hud.dismiss()
                     wakeWord.resumeAfterRecording()
                     return
+                }
+
+                // Inline AI-kommandoer: detektér trigger-frase i slutningen af
+                // dictation ("...skriv det som email"). Hvis trigger findes OG
+                // LM Studio er klar, splitter vi content fra instruction og kører
+                // LM Studio. Skip stenograf + mode-routing — inline-edit overrider.
+                // Hvis LM Studio nede: ignorer trigger, fortsæt til normal flow.
+                if inlineEditEnabled,
+                   lmStudio.isConfigured,
+                   let split = InlineEditMode.detectInstruction(correctedText) {
+                    log.info("Inline-edit kører — content=\(split.content.count) chars, instruktion=\"\(split.instruction.prefix(60), privacy: .public)\"")
+                    state = .routing
+                    let marker = Mode(id: "inline-edit", title: "Redigerer…", triggers: [], systemPrompt: "")
+                    hud.update(state: .routing, activeMode: marker)
+                    do {
+                        let result = try await InlineEditMode.run(
+                            content: split.content,
+                            instruction: split.instruction,
+                            controller: self
+                        )
+                        cursor.type(result)
+                        history.append(TranscriptEntry(
+                            rawText: transcript.text,
+                            processedText: result,
+                            modeId: "inline-edit",
+                            durationMs: transcript.durationMs,
+                            inferenceMs: transcript.inferenceMs
+                        ))
+                        state = .idle
+                        hud.dismiss()
+                        wakeWord.resumeAfterRecording()
+                        return
+                    } catch {
+                        log.warning("InlineEditMode fejlede: \(error.localizedDescription, privacy: .public) — falder til normal flow")
+                        // Fortsæt nedenunder med normal mode-routing på correctedText
+                    }
                 }
 
                 // Effektiv stenograf: profil har højere prioritet end global setting.

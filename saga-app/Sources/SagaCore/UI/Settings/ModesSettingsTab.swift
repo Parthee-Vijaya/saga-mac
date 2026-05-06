@@ -12,6 +12,35 @@ struct ModesSettingsTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                SettingsCard(
+                    "Inline AI-kommandoer",
+                    footer: "Sig fx 'skriv det som email', 'lav det til punktopstilling' eller 'gør det mere formelt' til sidst i din dictation. Saga splitter content fra instruktion og sender til LM Studio. Kræver LM Studio."
+                ) {
+                    SettingsRow(
+                        "Aktivér inline-edit",
+                        subtitle: "Trigger-fraser detekteres automatisk i suffix-position. Hvis LM Studio er nede ignoreres triggeren og rå dictation indsættes."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.inlineEditEnabled },
+                            set: { controller.inlineEditEnabled = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+                    if controller.inlineEditEnabled {
+                        Divider().padding(.vertical, 4)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Triggers")
+                                .font(.caption.bold())
+                                .foregroundColor(.secondary)
+                            Text(InlineEditMode.triggers.joined(separator: " · "))
+                                .font(.caption.monospaced())
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
                 if !controller.modes.custom.isEmpty {
                     SettingsCard(
                         "Custom modes (\(controller.modes.custom.count))",

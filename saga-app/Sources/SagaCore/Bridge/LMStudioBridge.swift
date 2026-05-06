@@ -39,6 +39,14 @@ public final class LMStudioBridge: @unchecked Sendable {
         }
     }
 
+    /// True hvis bridge er konfigureret med et model-navn (auto-detectet
+    /// eller manuelt sat). Bruges af InlineEditMode til kun at trigge
+    /// LLM-pass når LM Studio faktisk er klar — ellers fall through til
+    /// rå dictation.
+    public var isConfigured: Bool {
+        queue.sync { !_model.isEmpty }
+    }
+
     /// Scan localhost-porte for OpenAI-kompatible /v1/models endpoints.
     /// Returnerer kun endpoints der svarer 200 OK med en valid model-liste.
     public func discover(ports: [Int] = LMStudioBridge.commonPorts) async -> [DiscoveredEndpoint] {
