@@ -34,6 +34,7 @@ public final class SagaController: ObservableObject {
     public let appProfiles: AppProfileStore
     public let vocabulary: VocabularyStore
     private let vocabularyProcessor = VocabularyPostProcessor()
+    private let fillerRemover = FillerWordRemover()
     private let selectionReader = SelectionReader()
 
     /// Sat ved hold-start hvis brugeren holdt Shift+hotkey OG har markeret tekst.
@@ -94,6 +95,16 @@ public final class SagaController: ObservableObject {
         }
     }
 
+    /// Strip pauseord ("øh", "altså", "ligesom") fra Canary-output.
+    /// Wispr-Flow-inspireret: gør dictation pænere out-of-the-box. Default ON.
+    /// Kører lokalt via regex (ingen LLM nødvendig).
+    @Published public var stripFillerWords: Bool {
+        didSet {
+            UserDefaults.standard.set(stripFillerWords, forKey: "stripFillerWords")
+            log.info("Strip filler-words: \(self.stripFillerWords ? "TIL" : "FRA", privacy: .public)")
+        }
+    }
+
     public init() {
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
@@ -119,6 +130,14 @@ public final class SagaController: ObservableObject {
         self.vadAutoStopEnabled = UserDefaults.standard.bool(forKey: "vadAutoStopEnabled")
         let savedDuration = UserDefaults.standard.double(forKey: "vadSilenceDuration")
         self.vadSilenceDuration = savedDuration > 0 ? savedDuration : 1.2
+        // Filler-strip default ON — overskrives kun hvis bruger eksplicit har slået fra.
+        // UserDefaults.bool returnerer false for ikke-eksisterende key, så vi
+        // bruger object(forKey:) for at tjekke om bruger har sat eksplicit.
+        if let saved = UserDefaults.standard.object(forKey: "stripFillerWords") as? Bool {
+            self.stripFillerWords = saved
+        } else {
+            self.stripFillerWords = true
+        }
     }
 
     public var menuBarIconName: String {
@@ -425,10 +444,15 @@ public final class SagaController: ObservableObject {
                 // Vocabulary post-processing — anvend brugerens egennavne/akronymer
                 // på den rå transcript før mode-routing. Bevarer den oprindelige
                 // tekst i history for transparens.
-                let correctedText = vocabularyProcessor.apply(
+                let vocabApplied = vocabularyProcessor.apply(
                     transcript.text,
                     entries: vocabulary.activeEntries
                 )
+                // Filler-word removal — strip "øh", "altså", "ligesom" osv.
+                // Kører lokalt (ingen LLM). Toggle i Settings → Generelt.
+                let correctedText = stripFillerWords
+                    ? fillerRemover.apply(vocabApplied)
+                    : vocabApplied
 
                 // Forced edit-mode: brugeren holdt Shift+hotkey OG havde markering.
                 // Skip ALT mode-routing og send selection+instruktion direkte til LLM.

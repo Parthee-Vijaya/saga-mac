@@ -23,6 +23,23 @@ struct GeneralSettingsTab: View {
                     }
                 }
 
+                SettingsCard(
+                    "Tekst-cleanup",
+                    footer: "Saga's lokal-først tilgang: alle cleanup-pas kører uden LLM."
+                ) {
+                    SettingsRow(
+                        "Strip pauseord",
+                        subtitle: "Fjerner 'øh', 'altså', 'ligesom' osv. fra transkriberet tekst. Kører lokalt via regex."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.stripFillerWords },
+                            set: { controller.stripFillerWords = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+                }
+
                 SettingsCard("Push-to-talk") {
                     SettingsRow(
                         "Hotkey",
