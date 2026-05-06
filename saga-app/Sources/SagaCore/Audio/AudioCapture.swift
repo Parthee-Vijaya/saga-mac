@@ -31,6 +31,14 @@ public final class AudioCapture: ObservableObject {
 
     public init() {}
 
+    /// Navnet på den aktive audio input-enhed — fx "MacBook Pro Microphone",
+    /// "AirPods Pro" eller "External Microphone". Computed ved hver opslag,
+    /// så hvis bruger skifter mic mellem dictations vises den nye automatisk.
+    /// Returnerer "Standard mikrofon" hvis Capture-API ikke har en device.
+    public var currentInputDeviceName: String {
+        AVCaptureDevice.default(for: .audio)?.localizedName ?? "Standard mikrofon"
+    }
+
     /// Aktivér VAD-baseret auto-stop for næste recording. Skal kaldes før `start()`.
     /// `onSilence` kaldes præcis én gang når brugeren har været stille
     /// `config.silenceDuration` i træk efter `config.minRecordingDuration`.

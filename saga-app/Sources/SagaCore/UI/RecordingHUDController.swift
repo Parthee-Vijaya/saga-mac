@@ -343,6 +343,7 @@ struct RecordingHUDView: View {
                         .monospacedDigit()
                 }
                 EngineBadge(label: controller.lastEngineLabel ?? activeEngineHint)
+                MicrophoneBadge(deviceName: audio.currentInputDeviceName)
             }
         case .transcribing, .routing:
             HStack(spacing: SagaSpacing.xs + 2) {
@@ -725,5 +726,49 @@ struct EngineBadge: View {
                 )
         )
         .help("Kører lokalt på din Mac — ingen audio eller tekst sendes til skyen")
+    }
+}
+
+// MARK: - Microphone badge
+
+/// Lille badge der viser hvilken mikrofon Saga lytter til. Mic-ikon +
+/// kort device-navn. Hjælpsom til at se om Saga bruger AirPods, built-in,
+/// eller en USB-mic.
+struct MicrophoneBadge: View {
+    let deviceName: String
+
+    /// Forkort lange device-navne så badge ikke fylder for meget.
+    /// "MacBook Pro Microphone" → "MacBook Pro"
+    /// "External Microphone (USB)" → "External"
+    private var shortLabel: String {
+        let cleaned = deviceName
+            .replacingOccurrences(of: " Microphone", with: "")
+            .replacingOccurrences(of: " (built-in)", with: "")
+            .replacingOccurrences(of: " (USB)", with: "")
+        // Hvis stadig over 18 chars, klip
+        if cleaned.count > 18 {
+            return String(cleaned.prefix(15)) + "…"
+        }
+        return cleaned
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 7, weight: .semibold))
+            Text(shortLabel)
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+        }
+        .foregroundColor(SagaColors.textSecondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.08))
+                .overlay(
+                    Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+                )
+        )
+        .help("Aktiv mikrofon: \(deviceName)")
     }
 }
