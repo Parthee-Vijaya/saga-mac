@@ -171,8 +171,9 @@ struct RecordingHUDView: View {
                 if model.state == .recording, !controller.currentPartial.isEmpty {
                     // Live partial-transcript ovenover waveform. Auto-scroller
                     // til bunden så brugeren altid ser det seneste der er sagt
-                    // — selv ved længere dictation. Erstattes af Canary's
-                    // authoritative transcript ved release.
+                    // — selv ved længere dictation. Gradient-mask gør at
+                    // ældre tekst i toppen fader ud (signalerer "tekst kommer
+                    // ind fra bunden").
                     ScrollViewReader { proxy in
                         ScrollView(.vertical, showsIndicators: false) {
                             Text(controller.currentPartial)
@@ -185,6 +186,20 @@ struct RecordingHUDView: View {
                         }
                         .frame(maxHeight: 36)  // ~2 linjer caption-tekst
                         .padding(.top, SagaSpacing.sm)
+                        .mask(
+                            // Top-fade: øverste 40% af visible area fader fra
+                            // 0 → 100% opacity. Sikrer "tekst kommer fra bunden"-feel
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0.0),
+                                    .init(color: .white.opacity(0.4), location: 0.25),
+                                    .init(color: .white, location: 0.6),
+                                    .init(color: .white, location: 1.0),
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
                         .onChange(of: controller.currentPartial) { _, _ in
                             withAnimation(.easeOut(duration: 0.18)) {
                                 proxy.scrollTo("partialBottom", anchor: .bottom)
