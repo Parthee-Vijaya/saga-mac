@@ -373,9 +373,16 @@ struct WaveformBars: View {
 
     var body: some View {
         GeometryReader { geo in
-            HStack(alignment: .center, spacing: barSpacing) {
-                ForEach(0..<barCount, id: \.self) { i in
-                    barView(for: i, height: geo.size.height)
+            ZStack {
+                // Subtil center-line der "anchorer" symmetrien
+                Rectangle()
+                    .fill(accent.opacity(0.18))
+                    .frame(height: 0.5)
+
+                HStack(alignment: .center, spacing: barSpacing) {
+                    ForEach(0..<barCount, id: \.self) { i in
+                        barView(for: i, height: geo.size.height)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -396,12 +403,32 @@ struct WaveformBars: View {
         // — ikke alle bars har samme højde selv ved samme audio-level
         let variation = perBarVariation(at: index)
         let boosted = pow(CGFloat(max(0.05, level)), 0.6) * variation
-        let barHeight = max(2, height * boosted)
+        // Total bar-højde fordeles lige mellem top og bund (symmetrisk fra center)
+        let halfHeight = max(1, (height * boosted) / 2)
 
-        Capsule(style: .continuous)
-            .fill(accent)
-            .frame(width: barWidth, height: barHeight)
-            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: barHeight)
+        // Symmetrisk: hver bar består af to capsules der vokser fra center op + ned.
+        // Lille mikro-variation per bar (top vs bund) for organisk audio-meter look.
+        let topVariation = 0.92 + perBarMicroVariation(at: index, seed: 1.0) * 0.16
+        let bottomVariation = 0.92 + perBarMicroVariation(at: index, seed: 2.0) * 0.16
+
+        VStack(spacing: 0) {
+            Capsule(style: .continuous)
+                .fill(accent)
+                .frame(width: barWidth, height: halfHeight * topVariation)
+                .animation(.spring(response: 0.22, dampingFraction: 0.7), value: halfHeight)
+            Capsule(style: .continuous)
+                .fill(accent.opacity(0.85))
+                .frame(width: barWidth, height: halfHeight * bottomVariation)
+                .animation(.spring(response: 0.22, dampingFraction: 0.7), value: halfHeight)
+        }
+    }
+
+    /// Mikro-variation 0..1 deterministisk per bar+seed til at skabe lille
+    /// asymmetri mellem top og bund (organisk look).
+    private func perBarMicroVariation(at index: Int, seed: Double) -> CGFloat {
+        let noise = abs(sin(Double(index) * 7.331 + seed * 11.5) * 9999.0)
+        let fractional = noise - floor(noise)
+        return CGFloat(fractional)
     }
 
     /// Pseudo-random men deterministic variation per bar-index — giver waveform
