@@ -12,7 +12,7 @@ public final class RecordingHUDController {
     private var escMonitor: Any?
 
     private let width: CGFloat = 480
-    private let height: CGFloat = 110
+    private let height: CGFloat = 145
 
     /// Kaldes når brugeren trykker esc mens recording — annullerer uden ASR.
     public var onCancel: (() -> Void)?
@@ -164,35 +164,31 @@ struct RecordingHUDView: View {
                 )
                 .sagaShadow(.medium)
 
-            // Kompakt 2-row Superwhisper-stil layout:
-            // Row 1: full-width waveform/visualizer (tæt + horisontal, fylder bredden)
-            // Row 2: logo venstre | timer center | keyboard-pills højre
+            // Layout (Superwhisper-stil):
+            // Row 1 (kun under recording, hvis partial findes): live transcript
+            // Row 2: full-width waveform/visualizer
+            // Row 3: logo venstre | timer center | keyboard-pills højre
             VStack(spacing: SagaSpacing.xs) {
-                ZStack {
-                    visualizer
+                if model.state == .recording, !controller.currentPartial.isEmpty {
+                    // Live partial-transcript ovenover waveform — adskilt visuelt
+                    // så de ikke konflikter. Erstattes af Canary's authoritative
+                    // transcript ved release.
+                    Text(controller.currentPartial)
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textPrimary.opacity(0.95))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 38)
-                        .padding(.horizontal, 2)  // næsten kant-til-kant for waveform
-
-                    // Live partial-transcript overlay — vises mens bruger taler.
-                    // Erstattes af Canary's authoritative transcript ved release.
-                    if model.state == .recording, !controller.currentPartial.isEmpty {
-                        Text(controller.currentPartial)
-                            .font(SagaTypography.caption)
-                            .foregroundColor(SagaColors.textPrimary.opacity(0.95))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, SagaSpacing.md)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: SagaRadii.small)
-                                    .fill(SagaColors.background.opacity(0.7))
-                            )
-                            .padding(.horizontal, SagaSpacing.sm)
-                            .transition(.opacity)
-                    }
+                        .padding(.horizontal, SagaSpacing.md)
+                        .padding(.top, SagaSpacing.sm)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                .padding(.top, SagaSpacing.sm)
+
+                visualizer
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .padding(.top, SagaSpacing.sm)
+                    .padding(.horizontal, 2)  // næsten kant-til-kant for waveform
 
                 Divider()
                     .background(SagaColors.border)
