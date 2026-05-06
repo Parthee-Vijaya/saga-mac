@@ -156,6 +156,16 @@ public enum Hotkey: String, CaseIterable, Sendable {
         case .fn: return "Fn / globe (kun Apple-keyboards)"
         }
     }
+
+    /// Kompakt symbol til keyboard-pills i HUD'er (uden parentes-suffix).
+    public var keySymbol: String {
+        switch self {
+        case .rightOption, .leftOption: return "⌥"
+        case .rightCommand: return "⌘"
+        case .rightControl: return "⌃"
+        case .fn: return "fn"
+        }
+    }
 }
 
 private func hotkeyTapCallback(

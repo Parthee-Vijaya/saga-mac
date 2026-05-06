@@ -9,9 +9,13 @@ public final class RecordingHUDController {
     private weak var controller: SagaController?
     private var window: NSWindow?
     private let model = RecordingHUDModel()
+    private var escMonitor: Any?
 
-    private let width: CGFloat = 440
-    private let height: CGFloat = 145
+    private let width: CGFloat = 460
+    private let height: CGFloat = 175
+
+    /// Kaldes når brugeren trykker esc mens recording — annullerer uden ASR.
+    public var onCancel: (() -> Void)?
 
     public init() {}
 
@@ -25,6 +29,7 @@ public final class RecordingHUDController {
         model.errorMessage = nil
         model.activeMode = nil
         ensureWindow().orderFrontRegardless()
+        installEscMonitor()
     }
 
     public func update(state: SagaState, activeMode: Mode? = nil) {
@@ -51,6 +56,26 @@ public final class RecordingHUDController {
         model.errorMessage = nil
         model.recordingStart = nil
         model.activeMode = nil
+        removeEscMonitor()
+    }
+
+    /// Global keyDown-monitor for esc — kaldes mens recording er aktiv så
+    /// brugeren kan annullere uden at trigge ASR. Fjernes ved dismiss.
+    private func installEscMonitor() {
+        guard escMonitor == nil else { return }
+        escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return }  // 53 = esc
+            Task { @MainActor [weak self] in
+                self?.onCancel?()
+            }
+        }
+    }
+
+    private func removeEscMonitor() {
+        if let monitor = escMonitor {
+            NSEvent.removeMonitor(monitor)
+            escMonitor = nil
+        }
     }
 
     public func show(error: Error) {
@@ -69,7 +94,7 @@ public final class RecordingHUDController {
             return win
         }
 
-        let view = RecordingHUDView(model: model, audio: controller.audio)
+        let view = RecordingHUDView(model: model, audio: controller.audio, hotkey: controller.hotkeys.hotkey)
         let host = NSHostingView(rootView: view)
         host.frame = NSRect(x: 0, y: 0, width: width, height: height)
 
@@ -114,43 +139,61 @@ final class RecordingHUDModel: ObservableObject {
 struct RecordingHUDView: View {
     @ObservedObject var model: RecordingHUDModel
     @ObservedObject var audio: AudioCapture
+    let hotkey: Hotkey
 
     var body: some View {
         ZStack {
-            // Frosted glass-baggrund med subtil tint
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
+            // Mørk solid baggrund + subtle border (dark-first, ignorerer system).
+            // Bruger ultraThinMaterial under for at få en lille frost-effekt
+            // mod skrivebordet.
+            RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(borderColor.opacity(0.07))
+                    RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
+                        .fill(SagaColors.surfaceElevated.opacity(0.85))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(borderColor.opacity(0.28), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
+                        .strokeBorder(SagaColors.border, lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: 6)
+                .sagaShadow(.medium)
 
-            VStack(spacing: 8) {
+            VStack(spacing: SagaSpacing.sm) {
                 statusLine
                 visualizer
                     .frame(maxWidth: .infinity)
-                    .frame(height: 80)
+                    .frame(height: 60)
+                keyboardHints
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 14)
+            .padding(.horizontal, SagaSpacing.xl)
+            .padding(.vertical, SagaSpacing.md)
         }
-        .padding(8)
+        .padding(SagaSpacing.sm)
+        .preferredColorScheme(.dark)
     }
 
     private var statusLine: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: SagaSpacing.sm) {
             indicator
             Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.primary.opacity(0.85))
+                .font(SagaTypography.caption)
+                .foregroundColor(SagaColors.textPrimary)
             Spacer(minLength: 0)
             if model.errorMessage == nil {
                 timeBadge
+            }
+        }
+    }
+
+    private var keyboardHints: some View {
+        HStack(spacing: SagaSpacing.lg) {
+            Spacer()
+            // Stop = release hotkey
+            KeyboardPill(keys: [hotkey.keySymbol], label: model.state == .recording ? "Slip for at sende" : "Hold for at tale")
+                .opacity(model.state == .idle || model.state == .recording ? 1 : 0.4)
+            // Cancel = esc
+            if model.state == .recording {
+                KeyboardPill(keys: ["esc"], label: "Annuller")
             }
         }
     }
@@ -162,29 +205,29 @@ struct RecordingHUDView: View {
             TimelineView(.periodic(from: .now, by: 0.1)) { context in
                 let elapsed = model.recordingStart.map { context.date.timeIntervalSince($0) } ?? 0
                 Text(formatTime(elapsed))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(SagaTypography.mono)
                     .monospacedDigit()
-                    .foregroundColor(accentColor)
-                    .padding(.horizontal, 10)
+                    .foregroundColor(SagaColors.accent)
+                    .padding(.horizontal, SagaSpacing.sm)
                     .padding(.vertical, 3)
                     .background(
-                        Capsule().fill(accentColor.opacity(0.15))
+                        Capsule().fill(SagaColors.accentSubtle)
                     )
             }
         case .transcribing, .routing:
             if let start = model.recordingStart {
-                Text(formatTime(Date().timeIntervalSince(start)) + " · transskriberer")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(.secondary)
+                Text(formatTime(Date().timeIntervalSince(start)) + " · " + (model.state == .routing ? "tænker" : "transskriberer"))
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
             } else {
                 Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
             }
         case .idle:
             Text(subtitle)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(SagaTypography.caption)
+                .foregroundColor(SagaColors.textSecondary)
         }
     }
 
@@ -204,27 +247,27 @@ struct RecordingHUDView: View {
         switch model.state {
         case .idle:
             Circle()
-                .fill(Color.secondary.opacity(0.5))
+                .fill(SagaColors.textTertiary)
                 .frame(width: 10, height: 10)
         case .recording:
             Circle()
-                .fill(accentColor)
+                .fill(SagaColors.accent)
                 .frame(width: 10, height: 10)
                 .overlay(
                     Circle()
-                        .stroke(accentColor.opacity(0.35), lineWidth: 5)
+                        .stroke(SagaColors.accent.opacity(0.4), lineWidth: 5)
                         .scaleEffect(2.2)
                         .opacity(0.6)
                 )
         case .transcribing:
             Image(systemName: "waveform")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(accentColor)
+                .foregroundColor(SagaColors.accent)
                 .symbolEffect(.variableColor.iterative, isActive: true)
         case .routing:
             Image(systemName: "sparkles")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(accentColor)
+                .foregroundColor(SagaColors.accent)
                 .symbolEffect(.pulse, isActive: true)
         }
     }
@@ -253,31 +296,18 @@ struct RecordingHUDView: View {
         }
     }
 
-    /// Saga's eneste accent: en mørkere himmelsblå. Konsistent på tværs af
-    /// states — kun shape og bevægelse adskiller recording/transcribing/routing.
-    private var accentColor: Color {
-        Color(red: 0.20, green: 0.55, blue: 0.95)  // deep sky blue
-    }
-
-    private var borderColor: Color {
-        switch model.state {
-        case .idle: return .primary
-        default: return accentColor
-        }
-    }
-
     @ViewBuilder
     private var visualizer: some View {
         switch model.state {
         case .recording:
-            WaveformBars(levels: audio.levelHistory, accent: accentColor)
+            WaveformBars(levels: audio.levelHistory, accent: SagaColors.accent)
         case .transcribing:
-            ShimmerBars(accent: accentColor)
+            ShimmerBars(accent: SagaColors.accent)
         case .routing:
-            ShimmerBars(accent: accentColor.opacity(0.8))
+            ShimmerBars(accent: SagaColors.accent.opacity(0.8))
         case .idle:
             Capsule()
-                .fill(Color.secondary.opacity(0.25))
+                .fill(SagaColors.textTertiary.opacity(0.4))
                 .frame(height: 2)
         }
     }

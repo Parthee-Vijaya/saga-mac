@@ -136,6 +136,7 @@ public final class SagaController: ObservableObject {
         log.info("Saga booter")
 
         hud.attach(controller: self)
+        hud.onCancel = { [weak self] in self?.cancelRecording() }
         health.attach(asr: asr)
         health.start()
 
@@ -322,6 +323,19 @@ public final class SagaController: ObservableObject {
     }
 
     // MARK: - Recording lifecycle
+
+    /// Annuller igangværende recording uden at sende til ASR. Kaldes fra
+    /// HUD'ens esc-monitor eller programmatisk. Idempotent.
+    public func cancelRecording() {
+        guard state == .recording else { return }
+        log.info("Recording annulleret af bruger (esc)")
+        _ = audio.stop()
+        pendingEditSelection = nil
+        pendingEditTargetPID = nil
+        state = .idle
+        hud.dismiss()
+        wakeWord.resumeAfterRecording()
+    }
 
     private func handleHoldStart(forceEdit: Bool = false) {
         guard state == .idle else { return }
