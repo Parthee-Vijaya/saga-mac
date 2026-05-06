@@ -19,6 +19,8 @@ public final class SagaController: ObservableObject {
     public let audio: AudioCapture
     public let cursor: CursorInjector
     public let asr: CanaryASRBridge
+    public let appleSpeech: AppleSpeechBridge
+    public let asrRouter: MultilingualASRRouter
     public let lmStudio: LMStudioBridge
     public let modes: ModeRouter
     public let health: HealthMonitor
@@ -36,6 +38,15 @@ public final class SagaController: ObservableObject {
     private let vocabularyProcessor = VocabularyPostProcessor()
     private let fillerRemover = FillerWordRemover()
     private let selectionReader = SelectionReader()
+
+    /// Live partial transcript via Apple's SFSpeechRecognizer parallel med Canary.
+    /// Vises i HUD under recording for instant feedback. Erstattes med Canary's
+    /// authoritative transcript ved release.
+    private let livePartial = LivePartialTranscriber()
+
+    /// Live partial-transkript fra SFSpeechRecognizer mens bruger holder ⌥.
+    /// Tom string mellem recordings.
+    @Published public private(set) var currentPartial: String = ""
 
     /// Sat ved hold-start hvis brugeren holdt Shift+hotkey OG har markeret tekst.
     /// Når != nil ved hold-end: kør EditMode.run direkte i stedet for mode-routing.
@@ -116,12 +127,23 @@ public final class SagaController: ObservableObject {
         }
     }
 
+    /// Aktivt sprog for transkription. Saga vælger ASR-backend (Canary eller
+    /// Apple Speech) baseret på dette. Kan overstyres pr. app via AppProfile.
+    @Published public var activeLanguage: SagaLanguage {
+        didSet {
+            UserDefaults.standard.set(activeLanguage.rawValue, forKey: "activeLanguage")
+            log.info("Aktivt sprog: \(self.activeLanguage.displayName, privacy: .public) (\(self.activeLanguage.usesCanary ? "Canary" : "Apple", privacy: .public))")
+        }
+    }
+
     public init() {
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
         self.audio = AudioCapture()
         self.cursor = CursorInjector()
         self.asr = CanaryASRBridge()
+        self.appleSpeech = AppleSpeechBridge()
+        self.asrRouter = MultilingualASRRouter(canary: self.asr, apple: self.appleSpeech)
         self.lmStudio = LMStudioBridge()
         self.modes = ModeRouter()
         self.health = HealthMonitor()
@@ -153,6 +175,12 @@ public final class SagaController: ObservableObject {
             self.inlineEditEnabled = saved
         } else {
             self.inlineEditEnabled = true
+        }
+        if let savedLang = UserDefaults.standard.string(forKey: "activeLanguage"),
+           let lang = SagaLanguage(rawValue: savedLang) {
+            self.activeLanguage = lang
+        } else {
+            self.activeLanguage = .default
         }
     }
 
@@ -364,6 +392,8 @@ public final class SagaController: ObservableObject {
     public func cancelRecording() {
         guard state == .recording else { return }
         log.info("Recording annulleret af bruger (esc)")
+        livePartial.stop()
+        currentPartial = ""
         _ = audio.stop()
         pendingEditSelection = nil
         pendingEditTargetPID = nil
@@ -426,12 +456,25 @@ public final class SagaController: ObservableObject {
         }
 
         audio.start()
+
+        // Start live partial-transcribe via Apple's SFSpeechRecognizer parallel
+        // med Canary. Vises i HUD så bruger får øjeblikkelig feedback. Erstattes
+        // af authoritative transcript ved release. Locale matcher aktivt sprog
+        // så live partial er på det rigtige sprog (fx tamilsk hvis valgt).
+        currentPartial = ""
+        let liveLocale = Locale(identifier: activeLanguage.appleLocale)
+        livePartial.setLocale(liveLocale)
+        livePartial.start { [weak self] partial in
+            guard let self, self.state == .recording else { return }
+            self.currentPartial = partial
+        }
     }
 
     private func handleHoldEnd() {
         guard state == .recording else { return }
         state = .transcribing
         hud.update(state: .transcribing)
+        livePartial.stop()
 
         let pcm = audio.stop()
         guard pcm.duration > 0.3 else {
@@ -453,9 +496,19 @@ public final class SagaController: ObservableObject {
         // for at undgå at fokus-skift under recording skifter profil mid-flow).
         let profile = appProfiles.currentProfile()
 
+        // Effektivt sprog: per-app override har højere prioritet end global setting.
+        // Brug AppProfile.languageCode hvis sat, ellers global activeLanguage.
+        let effectiveLanguage: SagaLanguage = {
+            if let profileLang = profile?.languageCode,
+               let lang = SagaLanguage(rawValue: profileLang) {
+                return lang
+            }
+            return activeLanguage
+        }()
+
         Task { @MainActor in
             do {
-                let transcript = try await asr.transcribe(pcm: pcm, language: "da")
+                let transcript = try await asrRouter.transcribe(pcm: pcm, language: effectiveLanguage)
 
                 // Vocabulary post-processing — anvend brugerens egennavne/akronymer
                 // på den rå transcript før mode-routing. Bevarer den oprindelige

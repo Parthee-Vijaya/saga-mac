@@ -190,6 +190,7 @@ struct AppProfileEditor: View {
     @State private var bundleIdentifier: String
     @State private var forcedModeId: String
     @State private var stenografChoice: StenografChoice
+    @State private var languageChoice: LanguageChoice
     @State private var enabled: Bool
 
     private let profileId: UUID
@@ -203,6 +204,42 @@ struct AppProfileEditor: View {
         _forcedModeId = State(initialValue: profile.forcedModeId ?? "")
         _enabled = State(initialValue: profile.enabled)
         _stenografChoice = State(initialValue: StenografChoice.from(profile.stenografOverride))
+        _languageChoice = State(initialValue: LanguageChoice.from(profile.languageCode))
+    }
+
+    enum LanguageChoice: Hashable, Identifiable {
+        case useGlobal
+        case override(SagaLanguage)
+
+        var id: String {
+            switch self {
+            case .useGlobal: return "global"
+            case .override(let lang): return lang.rawValue
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .useGlobal: return "Brug globalt sprog"
+            case .override(let lang): return "\(lang.displayName) (\(lang.usesCanary ? "Canary" : "Apple"))"
+            }
+        }
+
+        static func from(_ code: String?) -> LanguageChoice {
+            guard let code, let lang = SagaLanguage(rawValue: code) else { return .useGlobal }
+            return .override(lang)
+        }
+
+        var asCode: String? {
+            switch self {
+            case .useGlobal: return nil
+            case .override(let lang): return lang.rawValue
+            }
+        }
+
+        static var allCases: [LanguageChoice] {
+            [.useGlobal] + SagaLanguage.allCases.map { .override($0) }
+        }
     }
 
     enum StenografChoice: String, CaseIterable, Identifiable {
@@ -290,6 +327,15 @@ struct AppProfileEditor: View {
                         .pickerStyle(.menu)
                         .labelsHidden()
                     }
+                    fieldGroup(title: "Sprog-override", hint: "Tving et specifikt sprog når Saga aktiveres i denne app. Fx altid tamilsk i WhatsApp eller engelsk i Slack.") {
+                        Picker("", selection: $languageChoice) {
+                            ForEach(LanguageChoice.allCases) { choice in
+                                Text(choice.label).tag(choice)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
                     Toggle("Aktiv", isOn: $enabled)
                 }
                 .padding(.horizontal, 20)
@@ -333,6 +379,7 @@ struct AppProfileEditor: View {
             displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
             forcedModeId: forcedModeId.isEmpty ? nil : forcedModeId,
             stenografOverride: stenografChoice.asOverride,
+            languageCode: languageChoice.asCode,
             enabled: enabled
         )
         if isExisting {

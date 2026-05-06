@@ -19,6 +19,12 @@ public struct AppProfile: Identifiable, Codable, Sendable, Hashable {
     /// - false: ALDRIG stenograf for denne app (selv hvis global er ON)
     public var stenografOverride: Bool?
 
+    /// Sprog-override: hvis sat, bruger Saga dette sprog til transkription
+    /// i stedet for det globale activeLanguage. Værdien er rawValue af
+    /// SagaLanguage (fx "danish", "english", "tamil"). nil = brug global.
+    /// Eksempel: WhatsApp altid tamilsk, Slack altid engelsk.
+    public var languageCode: String?
+
     /// Bruger-aktiveret. Disabled profiler ignoreres ved lookup.
     public var enabled: Bool
 
@@ -28,6 +34,7 @@ public struct AppProfile: Identifiable, Codable, Sendable, Hashable {
         displayName: String,
         forcedModeId: String? = nil,
         stenografOverride: Bool? = nil,
+        languageCode: String? = nil,
         enabled: Bool = true
     ) {
         self.id = id
@@ -35,6 +42,7 @@ public struct AppProfile: Identifiable, Codable, Sendable, Hashable {
         self.displayName = displayName
         self.forcedModeId = forcedModeId
         self.stenografOverride = stenografOverride
+        self.languageCode = languageCode
         self.enabled = enabled
     }
 }

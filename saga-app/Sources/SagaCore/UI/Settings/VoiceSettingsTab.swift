@@ -9,6 +9,28 @@ struct VoiceSettingsTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 SettingsCard(
+                    "Sprog",
+                    footer: "EU-sprog kører via Canary (bedst kvalitet, ANE-accelereret). Tamilsk + andre kører via Apple Speech (kræver at sproget er downloaded i System Settings → Apple Intelligence & Siri)."
+                ) {
+                    SettingsRow(
+                        "Aktivt sprog",
+                        subtitle: controller.activeLanguage.qualityLabel
+                    ) {
+                        Picker("", selection: Binding(
+                            get: { controller.activeLanguage },
+                            set: { controller.activeLanguage = $0 }
+                        )) {
+                            ForEach(SagaLanguage.allCases, id: \.self) { lang in
+                                Text(lang.displayName).tag(lang)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 180)
+                    }
+                }
+
+                SettingsCard(
                     "Wake-word",
                     footer: "Saga lytter altid via Apples on-device speech recognition. Kræver permission. Default OFF."
                 ) {

@@ -94,7 +94,12 @@ public final class RecordingHUDController {
             return win
         }
 
-        let view = RecordingHUDView(model: model, audio: controller.audio, hotkey: controller.hotkeys.hotkey)
+        let view = RecordingHUDView(
+            model: model,
+            audio: controller.audio,
+            controller: controller,
+            hotkey: controller.hotkeys.hotkey
+        )
         let host = NSHostingView(rootView: view)
         host.frame = NSRect(x: 0, y: 0, width: width, height: height)
 
@@ -139,6 +144,7 @@ final class RecordingHUDModel: ObservableObject {
 struct RecordingHUDView: View {
     @ObservedObject var model: RecordingHUDModel
     @ObservedObject var audio: AudioCapture
+    @ObservedObject var controller: SagaController
     let hotkey: Hotkey
 
     var body: some View {
@@ -162,11 +168,31 @@ struct RecordingHUDView: View {
             // Row 1: full-width waveform/visualizer (tæt + horisontal, fylder bredden)
             // Row 2: logo venstre | timer center | keyboard-pills højre
             VStack(spacing: SagaSpacing.xs) {
-                visualizer
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 38)
-                    .padding(.top, SagaSpacing.sm)
-                    .padding(.horizontal, 2)  // næsten kant-til-kant for waveform
+                ZStack {
+                    visualizer
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .padding(.horizontal, 2)  // næsten kant-til-kant for waveform
+
+                    // Live partial-transcript overlay — vises mens bruger taler.
+                    // Erstattes af Canary's authoritative transcript ved release.
+                    if model.state == .recording, !controller.currentPartial.isEmpty {
+                        Text(controller.currentPartial)
+                            .font(SagaTypography.caption)
+                            .foregroundColor(SagaColors.textPrimary.opacity(0.95))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, SagaSpacing.md)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: SagaRadii.small)
+                                    .fill(SagaColors.background.opacity(0.7))
+                            )
+                            .padding(.horizontal, SagaSpacing.sm)
+                            .transition(.opacity)
+                    }
+                }
+                .padding(.top, SagaSpacing.sm)
 
                 Divider()
                     .background(SagaColors.border)
@@ -176,6 +202,7 @@ struct RecordingHUDView: View {
                     .padding(.horizontal, SagaSpacing.sm)
             }
             .padding(.vertical, SagaSpacing.sm)
+            .animation(.easeInOut(duration: 0.15), value: controller.currentPartial)
         }
         .padding(SagaSpacing.xs)  // outer padding 8 → 4 for at fjerne dead space
         .preferredColorScheme(.dark)

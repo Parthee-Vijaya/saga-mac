@@ -8,6 +8,8 @@
 	<string>Saga</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>dk.parthee.saga</string>
 	<key>CFBundleInfoDictionaryVersion</key>

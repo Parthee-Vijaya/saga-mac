@@ -18,7 +18,7 @@ import OSLog
 public final class LivePartialTranscriber {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "live-partial")
 
-    private let speechRecognizer: SFSpeechRecognizer?
+    private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
@@ -26,11 +26,23 @@ public final class LivePartialTranscriber {
     private(set) var isRunning: Bool = false
 
     public init(locale: Locale = Locale(identifier: "da-DK")) {
-        if let danish = SFSpeechRecognizer(locale: locale) {
-            self.speechRecognizer = danish
+        if let recognizer = SFSpeechRecognizer(locale: locale) {
+            self.speechRecognizer = recognizer
         } else {
             self.speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         }
+    }
+
+    /// Skift locale på recognizer mellem dictations. Hvis isRunning så genstart
+    /// for at picke det nye locale op.
+    public func setLocale(_ locale: Locale) {
+        let wasRunning = isRunning
+        if wasRunning { stop() }
+        if let recognizer = SFSpeechRecognizer(locale: locale) {
+            self.speechRecognizer = recognizer
+        }
+        // Hvis recognizer var startet, lader vi caller genstarte selv —
+        // de har callback'en.
     }
 
     /// Start live recognition. Callback fyrer hver gang partial-result opdateres.
