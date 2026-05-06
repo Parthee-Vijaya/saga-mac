@@ -11,8 +11,8 @@ public final class RecordingHUDController {
     private let model = RecordingHUDModel()
     private var escMonitor: Any?
 
-    private let width: CGFloat = 480
-    private let height: CGFloat = 145
+    private let width: CGFloat = 540
+    private let height: CGFloat = 195
 
     /// Kaldes når brugeren trykker esc mens recording — annullerer uden ASR.
     public var onCancel: (() -> Void)?
@@ -210,7 +210,9 @@ struct RecordingHUDView: View {
             .padding(.vertical, SagaSpacing.sm)
             .animation(.easeInOut(duration: 0.15), value: controller.currentPartial)
         }
-        .padding(SagaSpacing.xs)  // outer padding 8 → 4 for at fjerne dead space
+        // Outer padding giver shadow/glow plads til at fade naturligt — ellers
+        // clippes glow af vinduekanten og virker firkantet.
+        .padding(SagaSpacing.xl)
         .preferredColorScheme(.dark)
     }
 

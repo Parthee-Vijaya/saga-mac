@@ -22,26 +22,26 @@ public struct KeyboardPill: View {
             ForEach(Array(keys.enumerated()), id: \.offset) { idx, key in
                 if idx > 0 {
                     Text("+")
-                        .font(SagaTypography.mono)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundColor(SagaColors.textTertiary)
                 }
                 Text(key)
-                    .font(SagaTypography.mono)
-                    .foregroundColor(SagaColors.textPrimary)
-                    .padding(.horizontal, SagaSpacing.sm)
-                    .padding(.vertical, 3)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundColor(SagaColors.textPrimary.opacity(0.9))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: SagaRadii.small)
-                            .fill(SagaColors.surfaceElevated)
+                            .fill(Color.white.opacity(0.08))
                             .overlay(
                                 RoundedRectangle(cornerRadius: SagaRadii.small)
-                                    .strokeBorder(SagaColors.border, lineWidth: 1)
+                                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
                             )
                     )
             }
             if let label {
                 Text(label)
-                    .font(SagaTypography.caption)
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundColor(SagaColors.textSecondary)
                     .padding(.leading, 2)
             }
