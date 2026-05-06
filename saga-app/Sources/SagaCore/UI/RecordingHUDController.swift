@@ -11,8 +11,8 @@ public final class RecordingHUDController {
     private let model = RecordingHUDModel()
     private var escMonitor: Any?
 
-    private let width: CGFloat = 460
-    private let height: CGFloat = 175
+    private let width: CGFloat = 480
+    private let height: CGFloat = 110
 
     /// Kaldes når brugeren trykker esc mens recording — annullerer uden ASR.
     public var onCancel: (() -> Void)?
@@ -150,7 +150,7 @@ struct RecordingHUDView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
-                        .fill(SagaColors.surfaceElevated.opacity(0.85))
+                        .fill(SagaColors.surfaceElevated.opacity(0.88))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
@@ -158,74 +158,62 @@ struct RecordingHUDView: View {
                 )
                 .sagaShadow(.medium)
 
-            VStack(spacing: SagaSpacing.sm) {
-                statusLine
+            // Kompakt 2-row Superwhisper-stil layout:
+            // Row 1: full-width waveform/visualizer (tæt + horisontal)
+            // Row 2: logo + status/timer + spacer + keyboard-pills
+            VStack(spacing: SagaSpacing.xs) {
                 visualizer
                     .frame(maxWidth: .infinity)
-                    .frame(height: 60)
-                keyboardHints
+                    .frame(height: 36)
+                    .padding(.top, SagaSpacing.sm)
+
+                Divider()
+                    .background(SagaColors.border)
+                    .opacity(0.6)
+
+                bottomBar
             }
-            .padding(.horizontal, SagaSpacing.xl)
-            .padding(.vertical, SagaSpacing.md)
+            .padding(.horizontal, SagaSpacing.lg)
+            .padding(.vertical, SagaSpacing.sm)
         }
         .padding(SagaSpacing.sm)
         .preferredColorScheme(.dark)
     }
 
-    private var statusLine: some View {
-        HStack(spacing: SagaSpacing.sm) {
-            indicator
-            Text(title)
-                .font(SagaTypography.caption)
-                .foregroundColor(SagaColors.textPrimary)
-            Spacer(minLength: 0)
-            if model.errorMessage == nil {
-                timeBadge
+    private var bottomBar: some View {
+        HStack(spacing: SagaSpacing.md) {
+            // Saga-logo + status/timer (live update via TimelineView)
+            HStack(spacing: SagaSpacing.xs + 2) {
+                indicator
+                statusText
             }
-        }
-    }
 
-    private var keyboardHints: some View {
-        HStack(spacing: SagaSpacing.lg) {
             Spacer()
-            // Stop = release hotkey
-            KeyboardPill(keys: [hotkey.keySymbol], label: model.state == .recording ? "Slip for at sende" : "Hold for at tale")
-                .opacity(model.state == .idle || model.state == .recording ? 1 : 0.4)
-            // Cancel = esc
+
+            // Keyboard-hints
             if model.state == .recording {
+                KeyboardPill(keys: [hotkey.keySymbol], label: "Stop")
                 KeyboardPill(keys: ["esc"], label: "Annuller")
+            } else if model.state == .idle {
+                KeyboardPill(keys: [hotkey.keySymbol], label: "Hold for at tale")
             }
         }
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder
-    private var timeBadge: some View {
+    private var statusText: some View {
         switch model.state {
         case .recording:
             TimelineView(.periodic(from: .now, by: 0.1)) { context in
                 let elapsed = model.recordingStart.map { context.date.timeIntervalSince($0) } ?? 0
                 Text(formatTime(elapsed))
                     .font(SagaTypography.mono)
-                    .monospacedDigit()
                     .foregroundColor(SagaColors.accent)
-                    .padding(.horizontal, SagaSpacing.sm)
-                    .padding(.vertical, 3)
-                    .background(
-                        Capsule().fill(SagaColors.accentSubtle)
-                    )
+                    .monospacedDigit()
             }
-        case .transcribing, .routing:
-            if let start = model.recordingStart {
-                Text(formatTime(Date().timeIntervalSince(start)) + " · " + (model.state == .routing ? "tænker" : "transskriberer"))
-                    .font(SagaTypography.caption)
-                    .foregroundColor(SagaColors.textSecondary)
-            } else {
-                Text(subtitle)
-                    .font(SagaTypography.caption)
-                    .foregroundColor(SagaColors.textSecondary)
-            }
-        case .idle:
-            Text(subtitle)
+        default:
+            Text(title)
                 .font(SagaTypography.caption)
                 .foregroundColor(SagaColors.textSecondary)
         }
@@ -246,27 +234,28 @@ struct RecordingHUDView: View {
     private var indicator: some View {
         switch model.state {
         case .idle:
-            Circle()
-                .fill(SagaColors.textTertiary)
-                .frame(width: 10, height: 10)
+            // Saga's lille trekant-logo (matcher Superwhisper's bottom-left logo)
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(SagaColors.accentGradient)
         case .recording:
             Circle()
                 .fill(SagaColors.accent)
-                .frame(width: 10, height: 10)
+                .frame(width: 8, height: 8)
                 .overlay(
                     Circle()
-                        .stroke(SagaColors.accent.opacity(0.4), lineWidth: 5)
+                        .stroke(SagaColors.accent.opacity(0.4), lineWidth: 4)
                         .scaleEffect(2.2)
                         .opacity(0.6)
                 )
         case .transcribing:
             Image(systemName: "waveform")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(SagaColors.accent)
                 .symbolEffect(.variableColor.iterative, isActive: true)
         case .routing:
             Image(systemName: "sparkles")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(SagaColors.accent)
                 .symbolEffect(.pulse, isActive: true)
         }
@@ -319,12 +308,15 @@ struct WaveformBars: View {
     let levels: [Float]
     let accent: Color
 
-    /// Antal bar-elementer.
-    private let barCount: Int = 36
+    /// Antal bar-elementer. Superwhisper-stil: mange tynde bars i stedet for
+    /// få fede bars for et mere "audio-meter"-look.
+    private let barCount: Int = 64
+    private let barWidth: CGFloat = 2
+    private let barSpacing: CGFloat = 2
 
     var body: some View {
         GeometryReader { geo in
-            HStack(alignment: .center, spacing: 3) {
+            HStack(alignment: .center, spacing: barSpacing) {
                 ForEach(0..<barCount, id: \.self) { i in
                     barView(for: i, height: geo.size.height)
                 }
@@ -336,27 +328,26 @@ struct WaveformBars: View {
     @ViewBuilder
     private func barView(for index: Int, height: CGFloat) -> some View {
         let level = sampledLevel(at: index)
-        // Boost lave levels visuelt så stille tale stadig giver synlige bars
-        let boosted = pow(CGFloat(max(0.03, level)), 0.7)
-        let barHeight = max(6, height * boosted)
+        // Minimum 0.04 så stille tale stadig giver synlige bars (vis altid lidt aktivitet)
+        let boosted = pow(CGFloat(max(0.04, level)), 0.7)
+        // Bar-højden er centreret om midten — så de udvider sig op og ned
+        let barHeight = max(3, height * boosted)
 
         Capsule(style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [accent, accent.opacity(0.5)],
-                    startPoint: .top, endPoint: .bottom
-                )
-            )
-            .frame(width: 5, height: barHeight)
+            .fill(accent)
+            .frame(width: barWidth, height: barHeight)
             .animation(.spring(response: 0.18, dampingFraction: 0.7), value: barHeight)
     }
 
     private func sampledLevel(at barIndex: Int) -> Float {
         guard !levels.isEmpty else { return 0 }
-        // Tag de seneste `barCount` levels (hale) — så bars rulles "fra højre"
-        let tail = max(0, levels.count - barCount)
-        let idx = tail + barIndex
-        if idx < levels.count { return levels[idx] }
+        // Sub-sample levels-arrayet for at matche barCount.
+        // Hvis levels er kortere, repeat; hvis længere, downsample.
+        let progress = Double(barIndex) / Double(max(1, barCount - 1))
+        let levelIdx = Int(progress * Double(levels.count - 1))
+        if levelIdx >= 0 && levelIdx < levels.count {
+            return levels[levelIdx]
+        }
         return 0
     }
 }
@@ -366,26 +357,23 @@ struct WaveformBars: View {
 struct ShimmerBars: View {
     let accent: Color
 
-    private let barCount: Int = 36
+    private let barCount: Int = 64
+    private let barWidth: CGFloat = 2
+    private let barSpacing: CGFloat = 2
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
             GeometryReader { geo in
-                HStack(alignment: .center, spacing: 3) {
+                HStack(alignment: .center, spacing: barSpacing) {
                     ForEach(0..<barCount, id: \.self) { i in
                         let t = context.date.timeIntervalSinceReferenceDate
-                        let wave = sin(t * 2.4 + Double(i) * 0.35)
-                        let amplitude = CGFloat(0.35 + 0.55 * (wave + 1) / 2)
-                        let barHeight = max(6, geo.size.height * amplitude)
+                        let wave = sin(t * 2.4 + Double(i) * 0.25)
+                        let amplitude = CGFloat(0.25 + 0.6 * (wave + 1) / 2)
+                        let barHeight = max(3, geo.size.height * amplitude)
 
                         Capsule(style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [accent.opacity(0.85), accent.opacity(0.35)],
-                                    startPoint: .top, endPoint: .bottom
-                                )
-                            )
-                            .frame(width: 5, height: barHeight)
+                            .fill(accent.opacity(0.7))
+                            .frame(width: barWidth, height: barHeight)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
