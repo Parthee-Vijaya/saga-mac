@@ -81,52 +81,50 @@ struct CompanionOverlayView: View {
 
     var body: some View {
         ZStack {
-            // Frosted glass-card med subtil accent-tint baseret på state
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            // Mørk solid card med subtle frost — matcher RecordingHUD
+            RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(stateAccent.opacity(0.06))
+                    RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
+                        .fill(SagaColors.surfaceElevated.opacity(0.85))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(stateAccent.opacity(0.32), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
+                        .strokeBorder(SagaColors.border, lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.18), radius: 20, x: 0, y: 6)
+                .sagaShadow(.medium)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: SagaSpacing.md) {
                 statusHeader
                 visualizer
-                    .frame(height: 50)
+                    .frame(height: 44)
                 captions
                 Spacer(minLength: 0)
+                if companion.state == .listening {
+                    HStack {
+                        Spacer()
+                        KeyboardPill(keys: ["sig 'tak'"], label: "for at afslutte")
+                    }
+                }
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 16)
+            .padding(.horizontal, SagaSpacing.xl)
+            .padding(.vertical, SagaSpacing.lg)
         }
-        .padding(8)
+        .padding(SagaSpacing.sm)
         .opacity(companion.state == .idle ? 0 : 1)
         .animation(.easeInOut(duration: 0.18), value: companion.state)
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header
 
     private var statusHeader: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: SagaSpacing.sm) {
             stateIndicator
             Text(headerTitle)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.primary.opacity(0.9))
+                .font(SagaTypography.bodyEmphasis)
+                .foregroundColor(SagaColors.textPrimary)
             Spacer()
-            // Discrete "say tak/stop to end"-hint
-            if companion.state == .listening {
-                Text("Sig 'tak' for at afslutte")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
-            }
         }
     }
 
@@ -135,32 +133,32 @@ struct CompanionOverlayView: View {
         switch companion.state {
         case .listening:
             Circle()
-                .fill(stateAccent)
+                .fill(SagaColors.accent)
                 .frame(width: 10, height: 10)
                 .overlay(
                     Circle()
-                        .stroke(stateAccent.opacity(0.35), lineWidth: 5)
+                        .stroke(SagaColors.accent.opacity(0.4), lineWidth: 5)
                         .scaleEffect(2.0)
                         .opacity(0.6)
                 )
         case .transcribing:
             Image(systemName: "waveform")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(stateAccent)
+                .foregroundColor(SagaColors.accent)
                 .symbolEffect(.variableColor.iterative, isActive: true)
         case .thinking:
             Image(systemName: "sparkles")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(stateAccent)
+                .foregroundColor(SagaColors.accent)
                 .symbolEffect(.pulse, isActive: true)
         case .speaking:
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(stateAccent)
+                .foregroundColor(SagaColors.accent)
                 .symbolEffect(.variableColor, isActive: true)
         case .idle:
             Circle()
-                .fill(Color.secondary.opacity(0.5))
+                .fill(SagaColors.textTertiary)
                 .frame(width: 10, height: 10)
         }
     }
@@ -181,14 +179,14 @@ struct CompanionOverlayView: View {
     private var visualizer: some View {
         switch companion.state {
         case .listening:
-            WaveformBars(levels: audio.levelHistory, accent: stateAccent)
+            WaveformBars(levels: audio.levelHistory, accent: SagaColors.accent)
         case .transcribing, .thinking:
-            ShimmerBars(accent: stateAccent.opacity(0.85))
+            ShimmerBars(accent: SagaColors.accent.opacity(0.85))
         case .speaking:
-            ShimmerBars(accent: stateAccent)
+            ShimmerBars(accent: SagaColors.accent)
         case .idle:
             Capsule()
-                .fill(Color.secondary.opacity(0.25))
+                .fill(SagaColors.textTertiary.opacity(0.4))
                 .frame(height: 2)
         }
     }
@@ -196,7 +194,7 @@ struct CompanionOverlayView: View {
     // MARK: - Captions
 
     private var captions: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: SagaSpacing.sm) {
             if let error = companion.lastError, !error.isEmpty {
                 errorCaption(error)
             }
@@ -211,8 +209,8 @@ struct CompanionOverlayView: View {
                companion.lastError == nil,
                companion.state == .listening {
                 Text("Tal efter wake-word…")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary.opacity(0.7))
+                    .font(SagaTypography.body)
+                    .foregroundColor(SagaColors.textTertiary)
                     .italic()
             }
         }
@@ -220,52 +218,44 @@ struct CompanionOverlayView: View {
     }
 
     private func errorCaption(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: SagaSpacing.sm) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundColor(.orange)
+                .font(.system(size: 12))
+                .foregroundColor(SagaColors.warning)
                 .padding(.top, 2)
             Text(text)
-                .font(.system(size: 12))
-                .foregroundColor(.orange)
+                .font(SagaTypography.body)
+                .foregroundColor(SagaColors.warning)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var userCaption: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: SagaSpacing.sm) {
             Image(systemName: "person.fill")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
+                .font(.system(size: 11))
+                .foregroundColor(SagaColors.textSecondary)
                 .padding(.top, 2)
             Text(companion.currentUserPartial)
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
+                .font(SagaTypography.body)
+                .foregroundColor(SagaColors.textSecondary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var assistantCaption: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: SagaSpacing.sm) {
             Image(systemName: "sparkles")
-                .font(.system(size: 11))
-                .foregroundColor(stateAccent)
+                .font(.system(size: 12))
+                .foregroundColor(SagaColors.accent)
                 .padding(.top, 2)
             Text(companion.currentAssistantBuffer)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundColor(.primary)
+                .font(SagaTypography.body)
+                .foregroundColor(SagaColors.textPrimary)
                 .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    // MARK: - Color
-
-    /// Saga's accent — samme deep-sky-blue som RecordingHUD, så de føles som
-    /// del af samme app uanset hvilken HUD der er aktiv.
-    private var stateAccent: Color {
-        Color(red: 0.20, green: 0.55, blue: 0.95)
     }
 }
