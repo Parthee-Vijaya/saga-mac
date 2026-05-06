@@ -147,6 +147,18 @@ struct RecordingHUDView: View {
     @ObservedObject var controller: SagaController
     let hotkey: Hotkey
 
+    /// Seneste partial-tekst Saga har vist — brugt til at detektere
+    /// hvilke ord der er TILFØJET siden sidst, så vi kan highlighte dem.
+    @State private var lastSeenPartial: String = ""
+
+    /// Den nye suffix-del af partial-tekst der skal highlightes med accent-farve.
+    /// Tom efter highlight-window udløber (~700ms efter sidste ord-ankomst).
+    @State private var highlightedSuffix: String = ""
+
+    /// Task der nulstiller highlightedSuffix efter delay. Cancellet hver gang
+    /// nyt partial ankommer (så timer reset'es).
+    @State private var highlightTask: Task<Void, Never>?
+
     var body: some View {
         ZStack {
             // Frosted-glass HUD: rent .thinMaterial uden tint. Kun en tynd
@@ -170,16 +182,12 @@ struct RecordingHUDView: View {
             VStack(spacing: SagaSpacing.xs) {
                 if model.state == .recording, !controller.currentPartial.isEmpty {
                     // Live partial-transcript ovenover waveform. Auto-scroller
-                    // til bunden så brugeren altid ser det seneste der er sagt
-                    // — selv ved længere dictation. Gradient-mask gør at
-                    // ældre tekst i toppen fader ud (signalerer "tekst kommer
-                    // ind fra bunden").
+                    // til bunden + nye ord highlightes accent i ~700ms.
                     ScrollViewReader { proxy in
                         ScrollView(.vertical, showsIndicators: false) {
-                            Text(controller.currentPartial)
+                            Text(partialAttributedString)
                                 .id("partialBottom")
                                 .font(SagaTypography.caption)
-                                .foregroundColor(SagaColors.textPrimary.opacity(0.95))
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: .infinity)
                                 .padding(.horizontal, SagaSpacing.md)
@@ -200,7 +208,8 @@ struct RecordingHUDView: View {
                                 endPoint: .bottom
                             )
                         )
-                        .onChange(of: controller.currentPartial) { _, _ in
+                        .onChange(of: controller.currentPartial) { _, newValue in
+                            handlePartialChange(newValue)
                             withAnimation(.easeOut(duration: 0.18)) {
                                 proxy.scrollTo("partialBottom", anchor: .bottom)
                             }
@@ -291,6 +300,53 @@ struct RecordingHUDView: View {
     /// før transcribe er startet. Baseret på activeLanguage.
     private var activeEngineHint: String {
         controller.activeLanguage.usesCanary ? "Canary" : "Apple Speech"
+    }
+
+    /// Build AttributedString hvor de nyeste ord (highlightedSuffix) har
+    /// accent-farve, og resten har normal text-color. Hvis suffix ikke
+    /// længere er suffix af current partial (fx pga. backtrack), render
+    /// hele teksten i normal farve.
+    private var partialAttributedString: AttributedString {
+        let full = controller.currentPartial
+        let suffix = highlightedSuffix
+
+        guard !suffix.isEmpty, full.hasSuffix(suffix) else {
+            var attr = AttributedString(full)
+            attr.foregroundColor = SagaColors.textPrimary.opacity(0.95)
+            return attr
+        }
+
+        let prefixEnd = full.index(full.endIndex, offsetBy: -suffix.count)
+        let prefix = String(full[..<prefixEnd])
+
+        var prefixAttr = AttributedString(prefix)
+        prefixAttr.foregroundColor = SagaColors.textPrimary.opacity(0.95)
+
+        var suffixAttr = AttributedString(suffix)
+        suffixAttr.foregroundColor = SagaColors.accent
+
+        prefixAttr.append(suffixAttr)
+        return prefixAttr
+    }
+
+    /// Detect nye ord siden sidst og start highlight-window. Cancel evt.
+    /// kørende reset-task så vinduet "forlænges" ved hver opdatering.
+    private func handlePartialChange(_ newValue: String) {
+        let common = lastSeenPartial.commonPrefix(with: newValue)
+        let suffix = String(newValue.dropFirst(common.count))
+        if !suffix.isEmpty, suffix != highlightedSuffix {
+            highlightedSuffix = suffix
+            highlightTask?.cancel()
+            highlightTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                if !Task.isCancelled {
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        highlightedSuffix = ""
+                    }
+                }
+            }
+        }
+        lastSeenPartial = newValue
     }
 
     /// Audio-reactive border opacity: under recording følger den den seneste
