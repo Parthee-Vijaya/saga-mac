@@ -11,8 +11,8 @@ public final class RecordingHUDController {
     private let model = RecordingHUDModel()
     private var escMonitor: Any?
 
-    private let width: CGFloat = 540
-    private let height: CGFloat = 195
+    private let width: CGFloat = 500
+    private let height: CGFloat = 165
 
     /// Kaldes når brugeren trykker esc mens recording — annullerer uden ASR.
     public var onCancel: (() -> Void)?
@@ -149,19 +149,21 @@ struct RecordingHUDView: View {
 
     var body: some View {
         ZStack {
-            // Frosted-glass HUD: rent .thinMaterial uden tint, plus accent-glow
-            // udenfor for at gøre HUD'en synlig som et flydende lys-objekt.
+            // Frosted-glass HUD: rent .thinMaterial uden tint. Kun en tynd
+            // accent-kant og en lille tæt glow så HUD virker "lyser op" uden
+            // at fylde et stort felt rundt om sig.
             RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
                 .fill(.thinMaterial)
                 .overlay(
+                    // Tydelig accent-border som "neon-tråd" rundt om HUD
                     RoundedRectangle(cornerRadius: SagaRadii.xl, style: .continuous)
-                        .strokeBorder(SagaColors.accent.opacity(0.35), lineWidth: 1)
+                        .strokeBorder(SagaColors.accent.opacity(0.6), lineWidth: 1.2)
                 )
                 // Soft drop shadow til afstandsfornemmelse fra skrivebord
                 .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 4)
-                // Accent-glow rundt om HUD'en (Superwhisper-stil "lyser op")
-                .shadow(color: SagaColors.accent.opacity(0.45), radius: 20, x: 0, y: 0)
-                .shadow(color: SagaColors.accent.opacity(0.25), radius: 36, x: 0, y: 0)
+                // Tæt accent-glow tæt på kanten — kun radius 6 så det følger
+                // HUD'ens afrundede form uden at danne en firkantet "blok"
+                .shadow(color: SagaColors.accent.opacity(0.5), radius: 6, x: 0, y: 0)
 
             // Layout (Superwhisper-stil):
             // Row 1 (kun under recording, hvis partial findes): live transcript
@@ -210,9 +212,9 @@ struct RecordingHUDView: View {
             .padding(.vertical, SagaSpacing.sm)
             .animation(.easeInOut(duration: 0.15), value: controller.currentPartial)
         }
-        // Outer padding giver shadow/glow plads til at fade naturligt — ellers
-        // clippes glow af vinduekanten og virker firkantet.
-        .padding(SagaSpacing.xl)
+        // Outer padding giver de små shadows plads til at fade rundt om HUD.
+        // 12pt er nok når glow-radius er 6 (drop shadow er 12 men trækker mod y+4).
+        .padding(SagaSpacing.md)
         .preferredColorScheme(.dark)
     }
 
