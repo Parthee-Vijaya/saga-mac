@@ -170,18 +170,29 @@ struct RecordingHUDView: View {
             // Row 3: logo venstre | timer center | keyboard-pills højre
             VStack(spacing: SagaSpacing.xs) {
                 if model.state == .recording, !controller.currentPartial.isEmpty {
-                    // Live partial-transcript ovenover waveform — adskilt visuelt
-                    // så de ikke konflikter. Erstattes af Canary's authoritative
-                    // transcript ved release.
-                    Text(controller.currentPartial)
-                        .font(SagaTypography.caption)
-                        .foregroundColor(SagaColors.textPrimary.opacity(0.95))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, SagaSpacing.md)
+                    // Live partial-transcript ovenover waveform. Auto-scroller
+                    // til bunden så brugeren altid ser det seneste der er sagt
+                    // — selv ved længere dictation. Erstattes af Canary's
+                    // authoritative transcript ved release.
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            Text(controller.currentPartial)
+                                .id("partialBottom")
+                                .font(SagaTypography.caption)
+                                .foregroundColor(SagaColors.textPrimary.opacity(0.95))
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, SagaSpacing.md)
+                        }
+                        .frame(maxHeight: 36)  // ~2 linjer caption-tekst
                         .padding(.top, SagaSpacing.sm)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .onChange(of: controller.currentPartial) { _, _ in
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                proxy.scrollTo("partialBottom", anchor: .bottom)
+                            }
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 visualizer
