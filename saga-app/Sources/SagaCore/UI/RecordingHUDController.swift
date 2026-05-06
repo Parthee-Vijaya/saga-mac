@@ -312,12 +312,13 @@ struct RecordingHUDView: View {
 
     private var bottomBar: some View {
         ZStack {
-            // Edges: logo venstre, keyboard-pills højre
+            // Edges: logo venstre, keyboard-pill højre.
+            // Stop-pill er fjernet — slip af hotkey er den naturlige stop.
+            // Kun esc-annuller-pill under recording (mindre kendt funktion).
             HStack(spacing: SagaSpacing.md) {
                 indicator
                 Spacer()
                 if model.state == .recording {
-                    KeyboardPill(keys: [hotkey.keySymbol], label: "Stop")
                     KeyboardPill(keys: ["esc"], label: "Annuller")
                 } else if model.state == .idle {
                     KeyboardPill(keys: [hotkey.keySymbol], label: "Hold for at tale")
