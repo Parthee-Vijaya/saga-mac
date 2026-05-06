@@ -2,7 +2,9 @@
 
 ## Nuværende state (sidst opdateret 2026-05-06)
 
-**Hvad virker end-to-end:** Hold ⌥ → dictation. Hold ⇧+⌥ → voice-edit. Sig "Hej Saga"/"Hej Jarvis" → Companion-conversation. **v0.6.0** introducerede Superwhisper-inspireret dark-first UI på alle flader + ny omvendt-trekant app-icon.
+**Hvad virker end-to-end:** Hold ⌥ → dansk/engelsk/tamilsk dictation med live transkript i HUD. Hold ⇧+⌥ → voice-edit. Sig fx "...skriv det som email" mid-dictation → inline AI-kommando. Sig "Hej Saga"/"Hej Jarvis" → Companion-conversation. Filler-strip + vocabulary fix automatisk transcript før indsætning.
+
+**v0.7.0** tilføjede Wispr-Flow-inspireret cleanup-layer (filler-strip + inline AI-kommandoer) + live partial transcribe i HUD + multilingual ASR med tamilsk + designpolish af HUD.
 
 **Faser merged til main:**
 
@@ -24,8 +26,9 @@
 | **Sprint B** (vocabulary, VAD auto-stop, voice-edit) | ✅ done |
 | **Voice-edit v2** (Shift+⌥, clipboard-fallback, Cmd+V paste, target-app re-aktivering, model-picker) | ✅ done |
 | **Design-redesign** (Superwhisper-inspired: dark-first tokens, kompakt HUD med hvid waveform + rød REC + keyboard-pills, single-step guided wizard, omvendt-trekant logo) | ✅ done |
+| **Wispr-Flow-cleanup** (filler-removal, inline AI-kommandoer, live partial transcribe i HUD, multilingual ASR med tamilsk + 10 EU-sprog, HUD-polish: tynd accent-kant + blødere transparency) | ✅ done |
 
-**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0), v0.5.0 (CLI-sprint + Sprint B + voice-edit v2), v0.6.0 (Design-redesign + omvendt-trekant logo).
+**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0), v0.5.0 (CLI-sprint + Sprint B + voice-edit v2), v0.6.0 (Design-redesign + omvendt-trekant logo), v0.7.0 (Wispr-Flow-cleanup + multilingual + live HUD).
 
 **Næste muligheder:**
 - Sideprojekt: hviske-coreml (~10 dage) → drop-in upgrade fra Canary til Hviske
@@ -464,3 +467,77 @@ vinduer). Centraliseret design-token-fil til konsistens på tværs.
 DMG bygget med Design-redesign + nye logo. Cumulativt fra v0.5.0:
 Superwhisper-inspireret dark-first UI på alle flader + omvendt-trekant logo
 overalt (menubar + app-icon).
+
+## Wispr-Flow-cleanup (done · 2026-05-06)
+
+Wispr-Flow-inspirerede AI-cleanup-features lagt oven på Canary's transcript.
+Fokus: gør dictation pænere out-of-the-box uden at sende noget til skyen.
+
+### Filler-word removal
+- [x] `FillerWordRemover.swift`: regex-baseret strip af danske pauseord
+- [x] To kategorier: sikre (øh, øhm, øhh, ehm, ehh, eh) der altid strippes,
+      og kontekst-sensitive (altså, ligesom, sådan set, hvad hedder det)
+      der kun strippes som standalone interjektion
+- [x] Cleanup: collapse whitespace, fjern duplikerede kommaer, capitalize
+- [x] 16 unit-tests dækker edge cases + brugerord-tilføjelse via UserDefaults
+- [x] Settings → Generelt → "Strip pauseord" toggle (default ON)
+
+### Inline AI-kommandoer
+- [x] `InlineEditMode.swift`: detektér trigger-frase i suffix-position
+      ("...skriv det som email", "...lav det til punktopstilling" osv.)
+- [x] 15 trigger-fraser dækker email/punktopstilling/formelt/kortere/længere
+- [x] NSRegularExpression med alle triggers OR'd sammen, sorteret længste
+      først så regex-engine foretrækker mest specifikke match
+- [x] Word-boundary via lookbehind for whitespace/punktuation
+- [x] Splitter content fra instruction og kører LM Studio (max_tokens 4096)
+- [x] HUD viser "Redigerer…" mens LM Studio arbejder
+- [x] Hvis LM Studio ikke konfigureret: trigger ignoreres helt
+- [x] 12 unit-tests dækker case-insensitivity, multiple triggers,
+      empty content, word-boundary, last-wins
+- [x] Settings → Modes → "Inline AI-kommandoer"-card med toggle + trigger-list
+
+### Live partial transcribe i HUD
+- [x] `LivePartialTranscriber` kører nu også under almindelig dictation
+- [x] Apple's SFSpeechRecognizer parallel med Canary
+- [x] @Published `currentPartial` i SagaController
+- [x] HUD viser partial-tekst i en ScrollView ovenover waveform
+- [x] Auto-scroll til bunden ved hver opdatering — bruger ser altid det
+      seneste der er sagt selv ved længere dictation
+- [x] Erstattes af Canary's authoritative transcript ved release
+- [x] LivePartialTranscriber.setLocale matcher activeLanguage så live er
+      på det rigtige sprog (også tamilsk hvis valgt)
+
+### Multi-language ASR med tamilsk
+- [x] `AppleSpeechBridge.swift`: SFSpeechRecognizer-wrapper for sprog
+      Canary ikke supporterer (særligt tamilsk ta-IN/ta-LK)
+- [x] Thread-safe ResumeGuard sikrer CheckedContinuation kun resumes én
+      gang ved race mellem callback og 60s timeout
+- [x] `MultilingualASRRouter.swift`: vælger Canary eller Apple Speech
+      baseret på sprog-kode. Canary supporterer { da, en, de, es, fr, it,
+      pt, nl, pl, ru, cs, sk, hu, ro, bg, hr, sr, sl, el, et, lv, lt, fi,
+      sv, no }, andre sprog routes til Apple
+- [x] `SagaLanguage` enum: 11 sprog initially (dansk default, engelsk,
+      tamilsk, tysk, spansk, fransk, italiensk, hollandsk, svensk, norsk,
+      finsk). Per-sprog: canaryCode, appleLocale, displayName, qualityLabel
+- [x] @Published activeLanguage i SagaController + UserDefaults-persistens
+- [x] AppProfile.languageCode: per-app sprog-override (fx WhatsApp altid
+      tamilsk, Slack altid engelsk)
+- [x] Settings → Stemme → "Sprog"-card med picker over alle 11 sprog
+- [x] Settings → Apps → AppProfileEditor → "Sprog-override"-felt
+
+### HUD design-polish (5 iterations baseret på brugerfeedback)
+- [x] **iter 1**: live partial-tekst lagt på som overlay ovenpå waveform
+- [x] **iter 2**: skifte til VStack — partial OVER waveform (ikke overlay)
+- [x] **iter 3**: ScrollView + ScrollViewReader for auto-scroll til bunden
+- [x] **iter 4**: opacity 0.88 → 0.55 → 0.18 (drastisk mere transparent)
+- [x] **iter 5**: thinMaterial + drop tint + tynd accent-kant (1.2pt, 60%)
+      Drop accent-glow helt — kun border + drop shadow tilbage. Window
+      500x165, outer padding 12. KeyboardPills 10pt mono med Color.white
+      .opacity(0.08) baggrund (var solid mørk panel)
+
+## v0.7.0 — Release (done · 2026-05-06)
+
+DMG bygget med Wispr-Flow-cleanup + multilingual + live HUD + design-polish.
+Cumulativt fra v0.6.0: filler-strip, inline AI-kommandoer, live transcribe
+i HUD, tamilsk + 10 EU-sprog, og HUD med tynd accent-kant + transparent
+glas-følelse.

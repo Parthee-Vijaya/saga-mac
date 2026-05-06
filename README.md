@@ -48,10 +48,12 @@ Saga er for personer der gerne vil have produktivt voice-input på dansk, men ik
 
 ---
 
-> **Status v0.6.0** — Superwhisper-inspireret design-redesign: kompakt HUD med
-> hvid waveform + rød REC-indikator + keyboard-pills, dark-first UI på alle
-> flader, single-step guided wizard, ny omvendt trekant som app-icon. Plus
-> alle v0.5.0-features. Se [docs/ROADMAP.md](docs/ROADMAP.md) for fuld faseliste.
+> **Status v0.7.0** — Wispr-Flow-inspireret cleanup-layer: automatisk strip
+> af pauseord ("øh"/"altså"/"ligesom"), inline AI-kommandoer ("...skriv det
+> som email" mid-dictation), live partial transcribe direkte i HUD'et med
+> auto-scroll, multi-language med **tamilsk** + 10 EU-sprog, samt HUD-polish
+> med tynd accent-kant og blødere frosted-glass-baggrund. Se
+> [docs/ROADMAP.md](docs/ROADMAP.md) for fuld faseliste.
 
 ## Hvad virker lige nu (verificeret)
 
@@ -209,8 +211,8 @@ Repo'et er privat, så download kræver authentication. Vælg én af:
 ```bash
 brew install gh
 gh auth login
-gh release download v0.6.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
-open Saga-0.6.0.dmg
+gh release download v0.7.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
+open Saga-0.7.0.dmg
 ```
 
 **Med `curl` + Personal Access Token:**
@@ -221,21 +223,21 @@ export GH_TOKEN="ghp_din_token_her"
 
 # Find asset-id'et
 ASSET_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.6.0" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.7.0" \
   | grep '"id"' | head -2 | tail -1 | grep -oE '[0-9]+')
 
 # Hent DMG (følg redirect til S3)
-curl -L -o Saga-0.6.0.dmg \
+curl -L -o Saga-0.7.0.dmg \
   -H "Authorization: token $GH_TOKEN" \
   -H "Accept: application/octet-stream" \
   "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/assets/$ASSET_ID"
 
-open Saga-0.6.0.dmg
+open Saga-0.7.0.dmg
 ```
 
 ### Eller via browser
 
-Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.6.0) →
+Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.7.0) →
 træk Saga.app til Applications.
 
 Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin guide inkl. Gatekeeper-bypass og
