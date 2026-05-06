@@ -32,22 +32,18 @@ targets:
     sources:
       - path: Sources/SagaApp
       - path: Sources/SagaCore
+      - path: Resources/AppIcon.icns
     dependencies:
       - package: CanaryKit
         product: CanaryKit
       - package: Sparkle
         product: Sparkle
-    resources:
-      - path: Resources
-        excludes:
-          - "Saga.entitlements"
-      - path: ../../canary-coreml/models/mlpackage
-        optional: true
     info:
       path: Resources/Info.plist
       properties:
         CFBundleName: Saga
         CFBundleDisplayName: Saga
+        CFBundleIconFile: AppIcon
         CFBundleIdentifier: dk.parthee.saga
         CFBundlePackageType: APPL
         CFBundleShortVersionString: $(MARKETING_VERSION)
