@@ -159,12 +159,12 @@ struct RecordingHUDView: View {
                 .sagaShadow(.medium)
 
             // Kompakt 2-row Superwhisper-stil layout:
-            // Row 1: full-width waveform/visualizer (tæt + horisontal)
-            // Row 2: logo + status/timer + spacer + keyboard-pills
+            // Row 1: full-width waveform/visualizer (tæt + horisontal, fylder bredden)
+            // Row 2: logo venstre | timer center | keyboard-pills højre
             VStack(spacing: SagaSpacing.xs) {
                 visualizer
                     .frame(maxWidth: .infinity)
-                    .frame(height: 36)
+                    .frame(height: 38)
                     .padding(.top, SagaSpacing.sm)
 
                 Divider()
@@ -173,7 +173,7 @@ struct RecordingHUDView: View {
 
                 bottomBar
             }
-            .padding(.horizontal, SagaSpacing.lg)
+            .padding(.horizontal, SagaSpacing.md)
             .padding(.vertical, SagaSpacing.sm)
         }
         .padding(SagaSpacing.sm)
@@ -181,22 +181,21 @@ struct RecordingHUDView: View {
     }
 
     private var bottomBar: some View {
-        HStack(spacing: SagaSpacing.md) {
-            // Saga-logo + status/timer (live update via TimelineView)
-            HStack(spacing: SagaSpacing.xs + 2) {
+        ZStack {
+            // Edges: logo venstre, keyboard-pills højre
+            HStack(spacing: SagaSpacing.md) {
                 indicator
-                statusText
+                Spacer()
+                if model.state == .recording {
+                    KeyboardPill(keys: [hotkey.keySymbol], label: "Stop")
+                    KeyboardPill(keys: ["esc"], label: "Annuller")
+                } else if model.state == .idle {
+                    KeyboardPill(keys: [hotkey.keySymbol], label: "Hold for at tale")
+                }
             }
 
-            Spacer()
-
-            // Keyboard-hints
-            if model.state == .recording {
-                KeyboardPill(keys: [hotkey.keySymbol], label: "Stop")
-                KeyboardPill(keys: ["esc"], label: "Annuller")
-            } else if model.state == .idle {
-                KeyboardPill(keys: [hotkey.keySymbol], label: "Hold for at tale")
-            }
+            // Center: live timer eller status-text — eksplicit centeret via ZStack
+            statusText
         }
         .padding(.bottom, 2)
     }
@@ -289,11 +288,12 @@ struct RecordingHUDView: View {
     private var visualizer: some View {
         switch model.state {
         case .recording:
-            WaveformBars(levels: audio.levelHistory, accent: SagaColors.accent)
+            // Hvid waveform under recording — matcher Superwhisper's clean look
+            WaveformBars(levels: audio.levelHistory, accent: SagaColors.textPrimary)
         case .transcribing:
-            ShimmerBars(accent: SagaColors.accent)
+            ShimmerBars(accent: SagaColors.textPrimary.opacity(0.85))
         case .routing:
-            ShimmerBars(accent: SagaColors.accent.opacity(0.8))
+            ShimmerBars(accent: SagaColors.accent)
         case .idle:
             Capsule()
                 .fill(SagaColors.textTertiary.opacity(0.4))
@@ -310,8 +310,8 @@ struct WaveformBars: View {
 
     /// Antal bar-elementer. Superwhisper-stil: mange tynde bars i stedet for
     /// få fede bars for et mere "audio-meter"-look.
-    private let barCount: Int = 64
-    private let barWidth: CGFloat = 2
+    private let barCount: Int = 80
+    private let barWidth: CGFloat = 1.5
     private let barSpacing: CGFloat = 2
 
     var body: some View {
@@ -328,15 +328,15 @@ struct WaveformBars: View {
     @ViewBuilder
     private func barView(for index: Int, height: CGFloat) -> some View {
         let level = sampledLevel(at: index)
-        // Minimum 0.04 så stille tale stadig giver synlige bars (vis altid lidt aktivitet)
-        let boosted = pow(CGFloat(max(0.04, level)), 0.7)
+        // Minimum 0.05 så stille tale stadig giver synlige bars (vis altid lidt aktivitet)
+        let boosted = pow(CGFloat(max(0.05, level)), 0.65)
         // Bar-højden er centreret om midten — så de udvider sig op og ned
-        let barHeight = max(3, height * boosted)
+        let barHeight = max(2, height * boosted)
 
         Capsule(style: .continuous)
             .fill(accent)
             .frame(width: barWidth, height: barHeight)
-            .animation(.spring(response: 0.18, dampingFraction: 0.7), value: barHeight)
+            .animation(.spring(response: 0.2, dampingFraction: 0.75), value: barHeight)
     }
 
     private func sampledLevel(at barIndex: Int) -> Float {
@@ -357,8 +357,8 @@ struct WaveformBars: View {
 struct ShimmerBars: View {
     let accent: Color
 
-    private let barCount: Int = 64
-    private let barWidth: CGFloat = 2
+    private let barCount: Int = 80
+    private let barWidth: CGFloat = 1.5
     private let barSpacing: CGFloat = 2
 
     var body: some View {
@@ -367,12 +367,12 @@ struct ShimmerBars: View {
                 HStack(alignment: .center, spacing: barSpacing) {
                     ForEach(0..<barCount, id: \.self) { i in
                         let t = context.date.timeIntervalSinceReferenceDate
-                        let wave = sin(t * 2.4 + Double(i) * 0.25)
-                        let amplitude = CGFloat(0.25 + 0.6 * (wave + 1) / 2)
-                        let barHeight = max(3, geo.size.height * amplitude)
+                        let wave = sin(t * 2.4 + Double(i) * 0.22)
+                        let amplitude = CGFloat(0.2 + 0.65 * (wave + 1) / 2)
+                        let barHeight = max(2, geo.size.height * amplitude)
 
                         Capsule(style: .continuous)
-                            .fill(accent.opacity(0.7))
+                            .fill(accent.opacity(0.75))
                             .frame(width: barWidth, height: barHeight)
                     }
                 }
