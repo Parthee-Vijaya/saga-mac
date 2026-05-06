@@ -353,10 +353,30 @@ struct RecordingHUDView: View {
         case .routing:
             ShimmerBars(accent: SagaColors.accent)
         case .idle:
-            Capsule()
-                .fill(SagaColors.textTertiary.opacity(0.4))
-                .frame(height: 2)
+            // Idle: subtil "breathing" så HUD ikke ser død ud — capsule
+            // pulserer mellem 30% og 60% opacity over 4 sek cycle
+            BreathingBar()
         }
+    }
+}
+
+// MARK: - Breathing-bar (idle state)
+
+/// Subtil pulserende capsule — vises i HUD's visualizer-area når idle.
+/// Signalerer at Saga er klar uden at tage opmærksomhed.
+struct BreathingBar: View {
+    @State private var phase: CGFloat = 0
+
+    var body: some View {
+        Capsule()
+            .fill(SagaColors.textTertiary.opacity(0.35 + phase * 0.30))
+            .frame(height: 2)
+            .scaleEffect(x: 0.85 + phase * 0.15, y: 1.0, anchor: .center)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                    phase = 1.0
+                }
+            }
     }
 }
 
