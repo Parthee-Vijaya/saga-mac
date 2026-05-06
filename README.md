@@ -1,13 +1,52 @@
 # Saga
 
-Mac-native voice assistant til dansk dictation og AI-modes.
+**Saga er en Mac-native voice-assistant der gør tale til tekst på dansk uden at sende noget til skyen.**
 
-**Hold `⌥` Højre Option → tal dansk → tekst indsættes ved cursor.**
+Du holder ⌥ Højre Option, taler dansk, og slipper. Teksten lander præcist hvor din cursor står — uanset om du er i Notes, Mail, Slack, Claude, VS Code eller en webformular i Chrome. Hele transkriptionen kører på din Mac via Apple Neural Engine. Ingen lyd forlader maskinen. Ingen abonnement. Ingen telemetri.
 
-> **LM Studio er IKKE nødvendig** for almindelig brug. Saga's dictation-funktion
-> (push-to-talk → dansk tekst ved cursor) kører fuldt lokalt på Apple Silicon.
-> LM Studio er kun en **valgfri tilføjelse** for AI-modes (oversæt, opsummer, formatér,
-> voice-edit, Companion-samtaler).
+## Det den kan
+
+**Dictation** — Tryk og tal. Saga bruger NVIDIA Canary-1b-v2 omkonverteret til CoreML for hurtig dansk transkription (under 200ms inference på en M-serie Mac). Plus 10 europæiske sprog samt **tamilsk** via Apple's on-device Speech-recognition.
+
+**Live tekst i HUD** — Mens du taler ser du transkriptionen rulle live i et kompakt frosted-glass HUD nederst på skærmen. Du behøver ikke gætte hvad der bliver fanget.
+
+**Wake-word + samtale-mode** — Sig *"Hej Saga"* eller *"Hej Jarvis"* og du er i en flydende dialog. Saga svarer i tale (Apple TTS eller ElevenLabs), viser captions, og slutter når du siger *"tak"* eller *"farvel"*.
+
+**Voice-edit** — Markér tekst i hvilken som helst app, hold ⇧+⌥, og dikter en instruktion: *"gør det mere formelt"*, *"skriv det som en email"*, *"fix typos"*. Markeringen overskrives med det redigerede svar. Virker også i Electron-apps som Claude og Slack via clipboard-fallback.
+
+**Inline AI-kommandoer** — Sig fx *"...skriv det som en formel email"* mens du dikterer, så omformulerer Saga indholdet inline.
+
+**Modes** — Trigger-baserede transformationer: *oversæt til engelsk*, *opsummer*, *formatér*, *vibecode*, *linkedin*, *vision* (analysér skærm), *reminder* (opret notifikation).
+
+**Custom modes + per-app profiler** — Lav dine egne modes med trigger-fraser og system-prompts. Bind specifikke modes til specifikke apps: altid format-mode i Notes, altid stenograf i Mail, altid tamilsk i WhatsApp.
+
+**Vocabulary + filler-strip** — Egen ordbog der retter ASR-fejl på dine egennavne og akronymer. Strip "øh", "altså", "ligesom" automatisk så dictation er ren ud-af-boksen.
+
+**Document-analyse** — Træk en PDF/DOCX ind, og Saga finder bindings-perioder, fortrydelsesfrister og kritiske passager via LLM.
+
+**Stenograf-mode** — Ren dictation uden LLM-routing — minimal latens når du bare vil have rå tekst.
+
+## Hvorfor det er anderledes
+
+**Fuldt lokalt.** Canary-modellen er bundlet med appen (1.7 GB) og kører på din Apple Neural Engine. Ingen audio-stream til Apple, OpenAI eller andre. For LLM-features (modes, voice-edit, samtaler) tilsluttes din egen lokale **LM Studio** — ingen API-keys, ingen rate-limits, ingen data der forlader maskinen.
+
+**Privat by default.** Ingen telemetri, ingen analytics, ingen anonyme metrics. Din transkriptions-historik gemmes lokalt i `~/Library/Application Support/Saga/` og kan slettes når som helst.
+
+**Ingen subscription.** Saga er privat-projekt-software. Du betaler nul kroner. Hvis du vil have ElevenLabs-stemmer i samtale-mode, er det en valgfri tilføjelse med din egen ElevenLabs-konto.
+
+**Mac-native UI.** Dark-first design der ignorerer system-tema. Frosted-glass HUD med live waveform og auto-scrollende live transkript. Status-bar app uden dock-icon — den er der når du har brug for den, usynlig ellers.
+
+## Hvad du får ud af det
+
+- **Hurtigere skrivning** end at taste, særligt for dansk hvor andre dictation-værktøjer er flade.
+- **Polerede tekster** i samme bevægelse — ingen separate kopier-til-ChatGPT-runder.
+- **Komplet kontrol over data** — alt forlader aldrig din Mac.
+- **Multi-sprog inklusiv tamilsk** — for tværsproget arbejde uden at skifte mellem værktøjer.
+- **Ét hotkey, mange use-cases** — fra hurtig email-dictation til guided AI-redigering.
+
+Saga er for personer der gerne vil have produktivt voice-input på dansk, men ikke vil binde sig til cloud-tjenester, betalte abonnementer eller usikre data-flows.
+
+---
 
 > **Status v0.6.0** — Superwhisper-inspireret design-redesign: kompakt HUD med
 > hvid waveform + rød REC-indikator + keyboard-pills, dark-first UI på alle
