@@ -1,8 +1,8 @@
 # Saga — Roadmap
 
-## Nuværende state (sidst opdateret 2026-05-05)
+## Nuværende state (sidst opdateret 2026-05-06)
 
-**Hvad virker end-to-end:** Hold ⌥ → dictation. Hold ⇧+⌥ → voice-edit. Sig "Hej Saga"/"Hej Jarvis" → Companion-conversation.
+**Hvad virker end-to-end:** Hold ⌥ → dictation. Hold ⇧+⌥ → voice-edit. Sig "Hej Saga"/"Hej Jarvis" → Companion-conversation. **v0.6.0** introducerede Superwhisper-inspireret dark-first UI på alle flader + ny omvendt-trekant app-icon.
 
 **Faser merged til main:**
 
@@ -23,8 +23,9 @@
 | **CLI-sprint** (TTS, Companion, settings-split, cursor-bubble, live-partial, per-app profiles) | ✅ done |
 | **Sprint B** (vocabulary, VAD auto-stop, voice-edit) | ✅ done |
 | **Voice-edit v2** (Shift+⌥, clipboard-fallback, Cmd+V paste, target-app re-aktivering, model-picker) | ✅ done |
+| **Design-redesign** (Superwhisper-inspired: dark-first tokens, kompakt HUD med hvid waveform + rød REC + keyboard-pills, single-step guided wizard, omvendt-trekant logo) | ✅ done |
 
-**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0), v0.5.0 (CLI-sprint + Sprint B + voice-edit v2).
+**Releases på GitHub:** v0.1.0 (M0+M8), v0.2.0 (M2+M3+M4+M5+M6.0), v0.5.0 (CLI-sprint + Sprint B + voice-edit v2), v0.6.0 (Design-redesign + omvendt-trekant logo).
 
 **Næste muligheder:**
 - Sideprojekt: hviske-coreml (~10 dage) → drop-in upgrade fra Canary til Hviske
@@ -387,3 +388,79 @@ som ":". Iteration efter real-world test i Claude-app.
 DMG bygget med alle ovenstående features. 1.7 GB med bundlede mlpackages.
 Cumulativt fra v0.2.0: CLI-sprint + Sprint B + voice-edit v2 + jarvis-wake + tak-detection
 + saga-sidecar slettet + Sparkle deaktiveret (placeholder-key).
+
+## Design-redesign (done · 2026-05-06)
+
+Superwhisper-inspireret visuel re-design af alle UI-flader. Dark-first
+æstetik der ignorerer system-tema (.preferredColorScheme(.dark) på alle
+vinduer). Centraliseret design-token-fil til konsistens på tværs.
+
+### Design-system foundation
+- [x] `SagaTheme.swift`: SagaColors (background/surface/surfaceElevated/border +
+      textPrimary/Secondary/Tertiary + accent (RGB 0.40,0.70,1.0) + accentSubtle/
+      Border + success/warning/danger), SagaTypography (display/title/heading/
+      body/bodyEmphasis/caption/label/mono), SagaRadii (small=8/medium=12/
+      large=16/xl=20/pill=999), SagaSpacing (xs=4 til xxl=32), SagaShadow
+      (subtle/medium/glow)
+- [x] `SagaButton.swift`: SagaButtonStyle med .primary/.secondary/.ghost/
+      .destructive — full-width 44pt høj med large corner-radius
+- [x] `KeyboardPill.swift`: Inline keyboard-shortcut hint med monospace-font
+      som "[⌥] Stop" eller "[⇧+⌥] Edit"
+- [x] `ProgressBar.swift`: WizardProgressBar (3pt høj, accent-gradient-fyldt
+      fraktion) til top af wizard
+
+### First-run wizard refactor
+- [x] Single-step state-driven wizard med 5 trin (Velkommen → Permissions →
+      Mic-test → Hotkey → LM Studio) — én ting ad gangen, progress-bar i top,
+      full-width primary CTA i bunden
+- [x] Welcome-step med stort waveform-icon i sky-blue gradient + glow-shadow
+- [x] Permissions-step med 2 NewPermissionRow (mic + AX) — icon-circle, titel,
+      detail, Allow/Settings-button
+- [x] Mic-test-step med live waveform via AudioCapture.levelHistory
+- [x] Hotkey-step med 5 HotkeyOption rows (radio-style cards med accent-border
+      ved selected)
+- [x] LM Studio-step med 2 ChoiceCard (Kun lokal vs Lokal + LM Studio) +
+      live discovery-status
+
+### Recording HUD redesign (3 iterations baseret på brugerfeedback)
+- [x] **v1**: dark-first colors + keyboard-pills + esc-cancel-funktion
+- [x] **v2**: kompakt 2-row layout (480x110, ~37% lavere) — full-width waveform
+      i top, logo+timer+pills i bottom-bar
+- [x] **v3 (final)**: hvid waveform (SagaColors.textPrimary), rød pulserende
+      REC-dot (RecordingDot view med ring-effekt), timer i midten via ZStack,
+      mindre dead-space (outer padding 8→4), 100 tynde 1.5pt-bars med per-bar
+      pseudo-random variation + center-bias + linear-gradient fade-mask i
+      kanterne (matcher Superwhisper's polished look)
+- [x] SagaController.cancelRecording() — esc afbryder uden ASR-kald
+- [x] Hotkey.keySymbol — kompakt symbol til keyboard-pills (⌥/⌘/⌃/fn)
+
+### Companion overlay re-skin
+- [x] Mørk solid baggrund (SagaColors.surfaceElevated 0.85) i stedet for
+      ultraThinMaterial. Matcher RecordingHUD's look
+- [x] Større typografi (12pt → 14pt body) for bedre læsbarhed
+- [x] KeyboardPill "[sig 'tak'] for at afslutte" erstatter den gamle
+      inline-capsule-hint
+
+### Settings tabs dark-first
+- [x] TabView root med .preferredColorScheme(.dark) + SagaColors.background
+- [x] Window 640x620 → 720x680 for større typografi
+- [x] SettingsCard: surface-baggrund, large corner-radius, label-typografi
+- [x] SettingsRow: bodyEmphasis title (14pt), caption subtitle, større padding
+- [x] Alle 7 tabs (Generelt/Stemme/Modes/Apps/Companion/Ordforråd/Reminders/
+      Om) arver automatisk det nye look via SettingsCard+SettingsRow
+
+### Branding: omvendt trekant som logo
+- [x] Menubar-icon: `triangle.fill` roteret 180° = omvendt trekant. Symbol-
+      effects per state (.pulse under recording, .variableColor.iterative
+      under transcribing/routing). Erstatter den tidligere state-skiftende
+      SF Symbol — én konsistent identitet
+- [x] App-icon: hvid omvendt trekant på olivengrøn baggrund (RGB 88,116,56).
+      Genereret som standard `.icns` med 10 sizes (16-1024px) via iconutil
+- [x] CFBundleIconFile: AppIcon i Info.plist
+- [x] Resources/AppIcon.icns tilføjet til target sources i project.yml
+
+## v0.6.0 — Release (done · 2026-05-06)
+
+DMG bygget med Design-redesign + nye logo. Cumulativt fra v0.5.0:
+Superwhisper-inspireret dark-first UI på alle flader + omvendt-trekant logo
+overalt (menubar + app-icon).

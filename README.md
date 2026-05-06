@@ -9,8 +9,10 @@ Mac-native voice assistant til dansk dictation og AI-modes.
 > LM Studio er kun en **valgfri tilføjelse** for AI-modes (oversæt, opsummer, formatér,
 > voice-edit, Companion-samtaler).
 
-> **Status v0.5.0** — feature-komplet: dictation + 7 modes + wake-word + voice-edit
-> + Companion conversation. Se [docs/ROADMAP.md](docs/ROADMAP.md) for fuld faseliste.
+> **Status v0.6.0** — Superwhisper-inspireret design-redesign: kompakt HUD med
+> hvid waveform + rød REC-indikator + keyboard-pills, dark-first UI på alle
+> flader, single-step guided wizard, ny omvendt trekant som app-icon. Plus
+> alle v0.5.0-features. Se [docs/ROADMAP.md](docs/ROADMAP.md) for fuld faseliste.
 
 ## Hvad virker lige nu (verificeret)
 
@@ -68,6 +70,7 @@ Mac-native voice assistant til dansk dictation og AI-modes.
 | **CLI-sprint** | TTS (Apple+ElevenLabs), Companion conversation, settings-split, cursor-bubble, live-partial, per-app profiles | ✅ done |
 | **Sprint B** | Vocabulary post-processor, VAD auto-stop, voice-edit | ✅ done |
 | **Voice-edit v2** | Shift+⌥ trigger, clipboard-fallback for Electron-apps, target-app re-aktivering, model-picker | ✅ done |
+| **Design-redesign** | Superwhisper-inspireret dark-first UI, kompakt HUD med hvid waveform + rød REC, keyboard-pills, single-step guided wizard, ny app-icon (omvendt trekant) | ✅ done |
 | **Sideprojekt** | hviske-coreml — Hviske → CoreML for bedre dansk-WER | ⚪ ~10 dage |
 
 ## Arkitektur
@@ -167,8 +170,8 @@ Repo'et er privat, så download kræver authentication. Vælg én af:
 ```bash
 brew install gh
 gh auth login
-gh release download v0.5.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
-open Saga-0.1.0.dmg
+gh release download v0.6.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
+open Saga-0.6.0.dmg
 ```
 
 **Med `curl` + Personal Access Token:**
@@ -179,21 +182,21 @@ export GH_TOKEN="ghp_din_token_her"
 
 # Find asset-id'et
 ASSET_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.5.0" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.6.0" \
   | grep '"id"' | head -2 | tail -1 | grep -oE '[0-9]+')
 
 # Hent DMG (følg redirect til S3)
-curl -L -o Saga-0.1.0.dmg \
+curl -L -o Saga-0.6.0.dmg \
   -H "Authorization: token $GH_TOKEN" \
   -H "Accept: application/octet-stream" \
   "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/assets/$ASSET_ID"
 
-open Saga-0.1.0.dmg
+open Saga-0.6.0.dmg
 ```
 
 ### Eller via browser
 
-Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.5.0) →
+Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.6.0) →
 træk Saga.app til Applications.
 
 Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin guide inkl. Gatekeeper-bypass og
