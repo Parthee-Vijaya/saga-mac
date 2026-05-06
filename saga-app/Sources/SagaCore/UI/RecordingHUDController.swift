@@ -238,18 +238,49 @@ struct RecordingHUDView: View {
     private var statusText: some View {
         switch model.state {
         case .recording:
-            TimelineView(.periodic(from: .now, by: 0.1)) { context in
-                let elapsed = model.recordingStart.map { context.date.timeIntervalSince($0) } ?? 0
-                Text(formatTime(elapsed))
-                    .font(SagaTypography.mono)
-                    .foregroundColor(SagaColors.textPrimary)
-                    .monospacedDigit()
+            HStack(spacing: SagaSpacing.xs + 2) {
+                TimelineView(.periodic(from: .now, by: 0.1)) { context in
+                    let elapsed = model.recordingStart.map { context.date.timeIntervalSince($0) } ?? 0
+                    Text(formatTime(elapsed))
+                        .font(SagaTypography.mono)
+                        .foregroundColor(SagaColors.textPrimary)
+                        .monospacedDigit()
+                }
+                EngineBadge(label: controller.lastEngineLabel ?? activeEngineHint)
             }
-        default:
+        case .transcribing, .routing:
+            HStack(spacing: SagaSpacing.xs + 2) {
+                Text(title)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
+                if let ms = controller.lastTranscribeMs {
+                    Text("\(formatLatency(ms))")
+                        .font(SagaTypography.mono)
+                        .foregroundColor(SagaColors.textPrimary)
+                        .monospacedDigit()
+                }
+                if let engine = controller.lastEngineLabel {
+                    EngineBadge(label: engine)
+                }
+            }
+        case .idle:
             Text(title)
                 .font(SagaTypography.caption)
                 .foregroundColor(SagaColors.textSecondary)
         }
+    }
+
+    /// Saga's hint om hvilken engine VIL blive brugt — vises under recording
+    /// før transcribe er startet. Baseret på activeLanguage.
+    private var activeEngineHint: String {
+        controller.activeLanguage.usesCanary ? "Canary" : "Apple Speech"
+    }
+
+    private func formatLatency(_ ms: Int) -> String {
+        if ms >= 1000 {
+            return String(format: "%.1fs", Double(ms) / 1000.0)
+        }
+        return "\(ms)ms"
     }
 
     private func formatTime(_ seconds: TimeInterval) -> String {
@@ -461,5 +492,28 @@ struct ShimmerBars: View {
                 )
             }
         }
+    }
+}
+
+// MARK: - Engine badge (vises ved siden af timer/status i HUD)
+
+/// Lille badge der viser hvilken engine bliver brugt: "Canary" / "Apple
+/// Speech" / "LM Studio". Stiliseret som lille kapsel med subtle accent-tint.
+struct EngineBadge: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 9, weight: .semibold, design: .rounded))
+            .foregroundColor(SagaColors.accent)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(SagaColors.accent.opacity(0.12))
+                    .overlay(
+                        Capsule().strokeBorder(SagaColors.accent.opacity(0.3), lineWidth: 0.5)
+                    )
+            )
     }
 }

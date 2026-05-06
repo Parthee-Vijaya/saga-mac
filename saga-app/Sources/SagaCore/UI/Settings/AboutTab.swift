@@ -45,10 +45,116 @@ struct AboutTab: View {
 
                 Divider().padding(.vertical, 8)
 
+                StatsCard(statsStore: controller.stats).environmentObject(controller)
                 UpdateCard().environmentObject(controller)
                 ModelStorageCard().environmentObject(controller)
             }
             .padding(20)
+        }
+    }
+}
+
+// MARK: - Stats card
+
+struct StatsCard: View {
+    @EnvironmentObject private var controller: SagaController
+    @ObservedObject var statsStore: TranscriptionStatsStore
+    @State private var showResetConfirm: Bool = false
+
+    var body: some View {
+        SettingsCard(
+            "Statistik",
+            footer: "Akkumulerede tal siden første brug. Kun aggregerede counters — ingen tekst-indhold gemmes her."
+        ) {
+            let s = statsStore.stats
+            VStack(alignment: .leading, spacing: 8) {
+                StatsRow(label: "Ord transcribed", value: numberFormatter.string(from: NSNumber(value: s.totalWords)) ?? "0")
+                Divider().padding(.vertical, 2)
+                StatsRow(label: "Tegn transcribed", value: numberFormatter.string(from: NSNumber(value: s.totalCharacters)) ?? "0")
+                Divider().padding(.vertical, 2)
+                StatsRow(label: "Lyd-tid transcribed", value: formatDuration(s.totalAudioSeconds))
+                Divider().padding(.vertical, 2)
+                StatsRow(label: "Antal optagelser", value: numberFormatter.string(from: NSNumber(value: s.totalRecordings)) ?? "0")
+                Divider().padding(.vertical, 2)
+                StatsRow(
+                    label: "Gennemsnitlig latens",
+                    value: s.totalRecordings > 0
+                        ? String(format: "%.0f ms (RTF %.2f)", s.averageInferenceSeconds * 1000, s.realTimeFactor)
+                        : "—"
+                )
+                if let first = s.firstUsedAt {
+                    Divider().padding(.vertical, 2)
+                    StatsRow(label: "Siden", value: dateFormatter.string(from: first))
+                }
+                if s.totalRecordings > 0 {
+                    Divider().padding(.vertical, 4)
+                    HStack {
+                        Spacer()
+                        Button(role: .destructive) {
+                            showResetConfirm = true
+                        } label: {
+                            Text("Nulstil")
+                        }
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            "Nulstil statistik?",
+            isPresented: $showResetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Nulstil", role: .destructive) {
+                statsStore.reset()
+            }
+            Button("Annuller", role: .cancel) {}
+        } message: {
+            Text("Alle akkumulerede tal sættes til 0. Kan ikke fortrydes.")
+        }
+    }
+
+    private var numberFormatter: NumberFormatter {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.groupingSeparator = "."
+        return f
+    }
+
+    private var dateFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        f.locale = Locale(identifier: "da_DK")
+        return f
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        if total < 60 { return "\(total) sek" }
+        if total < 3600 {
+            let mins = total / 60
+            let secs = total % 60
+            return "\(mins) min \(secs) sek"
+        }
+        let hrs = total / 3600
+        let mins = (total % 3600) / 60
+        return "\(hrs) t \(mins) min"
+    }
+}
+
+private struct StatsRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .monospacedDigit()
         }
     }
 }

@@ -48,6 +48,18 @@ public final class SagaController: ObservableObject {
     /// Tom string mellem recordings.
     @Published public private(set) var currentPartial: String = ""
 
+    /// Akkumulerede statistikker (totale ord/tegn/lyd-minutter).
+    /// Vises i Settings → Om → Statistik.
+    public let stats = TranscriptionStatsStore()
+
+    /// Seneste transkriberings-latens i millisekunder. Vises i HUD ved siden
+    /// af timeren. Reset ved næste recording-start.
+    @Published public private(set) var lastTranscribeMs: Int? = nil
+
+    /// Navnet på engine-en der lavede den seneste transkription ("Canary",
+    /// "Apple Speech", "LM Studio"). Vises i HUD-bottom-bar.
+    @Published public private(set) var lastEngineLabel: String? = nil
+
     /// Sat ved hold-start hvis brugeren holdt Shift+hotkey OG har markeret tekst.
     /// Når != nil ved hold-end: kør EditMode.run direkte i stedet for mode-routing.
     /// Nulstilles efter hver recording (success OR error path).
@@ -457,6 +469,10 @@ public final class SagaController: ObservableObject {
 
         audio.start()
 
+        // Reset transcribe-stats fra forrige recording — ny recording starter clean.
+        lastTranscribeMs = nil
+        lastEngineLabel = nil
+
         // Start live partial-transcribe via Apple's SFSpeechRecognizer parallel
         // med Canary. Vises i HUD så bruger får øjeblikkelig feedback. Erstattes
         // af authoritative transcript ved release. Locale matcher aktivt sprog
@@ -510,6 +526,15 @@ public final class SagaController: ObservableObject {
             do {
                 let transcript = try await asrRouter.transcribe(pcm: pcm, language: effectiveLanguage)
 
+                // Track engine + latency for HUD-display + stats
+                lastTranscribeMs = transcript.inferenceMs
+                lastEngineLabel = effectiveLanguage.usesCanary ? "Canary" : "Apple Speech"
+                stats.record(
+                    text: transcript.text,
+                    audioSeconds: pcm.duration,
+                    inferenceMs: transcript.inferenceMs
+                )
+
                 // Vocabulary post-processing — anvend brugerens egennavne/akronymer
                 // på den rå transcript før mode-routing. Bevarer den oprindelige
                 // tekst i history for transparens.
@@ -531,6 +556,7 @@ public final class SagaController: ObservableObject {
                     // Skift HUD til "thinking" så brugeren ved Saga arbejder.
                     // EditMode.run kan tage 30-60s på en lokal 26B-model — uden
                     // synlig progress kommer brugeren naturligt til at klikke væk.
+                    lastEngineLabel = "LM Studio"
                     state = .routing
                     let editMarker = Mode(id: "edit", title: "Redigerer…", triggers: [], systemPrompt: "")
                     hud.update(state: .routing, activeMode: editMarker)
@@ -572,6 +598,7 @@ public final class SagaController: ObservableObject {
                    lmStudio.isConfigured,
                    let split = InlineEditMode.detectInstruction(correctedText) {
                     log.info("Inline-edit kører — content=\(split.content.count) chars, instruktion=\"\(split.instruction.prefix(60), privacy: .public)\"")
+                    lastEngineLabel = "LM Studio"
                     state = .routing
                     let marker = Mode(id: "inline-edit", title: "Redigerer…", triggers: [], systemPrompt: "")
                     hud.update(state: .routing, activeMode: marker)
@@ -620,6 +647,7 @@ public final class SagaController: ObservableObject {
 
                 state = .routing
                 hud.update(state: .routing)
+                lastEngineLabel = "LM Studio"
 
                 // Vocabulary kommer FØRST (corrected text), så forced-mode prepender
                 // sin trigger på den korrigerede tekst. ModeRouter matcher derved
