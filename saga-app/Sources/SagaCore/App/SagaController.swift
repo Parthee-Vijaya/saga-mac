@@ -35,8 +35,10 @@ public final class SagaController: ObservableObject {
     public let modelDownloader: ModelDownloader
     public let appProfiles: AppProfileStore
     public let vocabulary: VocabularyStore
+    public let snippets: SnippetStore
     private let vocabularyProcessor = VocabularyPostProcessor()
     private let fillerRemover = FillerWordRemover()
+    private let snippetExpander = SnippetExpander()
     private let selectionReader = SelectionReader()
 
     /// Live partial transcript via Apple's SFSpeechRecognizer parallel med Canary.
@@ -183,6 +185,7 @@ public final class SagaController: ObservableObject {
         self.modelDownloader = ModelDownloader()
         self.appProfiles = AppProfileStore()
         self.vocabulary = VocabularyStore()
+        self.snippets = SnippetStore()
         self.stenografMode = UserDefaults.standard.bool(forKey: "stenografMode")
         self.wakeWordEnabled = UserDefaults.standard.bool(forKey: "wakeWordEnabled")
         self.vadAutoStopEnabled = UserDefaults.standard.bool(forKey: "vadAutoStopEnabled")
@@ -565,9 +568,15 @@ public final class SagaController: ObservableObject {
                 )
                 // Filler-word removal — strip "øh", "altså", "ligesom" osv.
                 // Kører lokalt (ingen LLM). Toggle i Settings → Generelt.
-                let correctedText = stripFillerWords
+                let fillerCleaned = stripFillerWords
                     ? fillerRemover.apply(vocabApplied)
                     : vocabApplied
+                // Snippet-expansion: trigger-fraser → tekstblokke ("min sig" →
+                // signature). Kører efter filler-strip men før mode-routing.
+                let correctedText = snippetExpander.apply(
+                    fillerCleaned,
+                    entries: snippets.activeEntries
+                )
 
                 // Forced edit-mode: brugeren holdt Shift+hotkey OG havde markering.
                 // Skip ALT mode-routing og send selection+instruktion direkte til LLM.
