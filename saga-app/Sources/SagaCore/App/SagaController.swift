@@ -52,6 +52,19 @@ public final class SagaController: ObservableObject {
     /// Vises i Settings → Om → Statistik.
     public let stats = TranscriptionStatsStore()
 
+    /// Daglig voice-journal — alle dictations samles i markdown-filer.
+    /// Default disabled, brugeren opt-in via Settings.
+    public let journal = JournalStore()
+
+    /// Toggle for daily journal. Når aktiv: hver succesfuld transcribe
+    /// appendes til ~/Saga-journal/YYYY-MM-DD.md med timestamp-header.
+    @Published public var journalEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(journalEnabled, forKey: "journalEnabled")
+            log.info("Daily journal: \(self.journalEnabled ? "TIL" : "FRA", privacy: .public)")
+        }
+    }
+
     /// Seneste transkriberings-latens i millisekunder. Vises i HUD ved siden
     /// af timeren. Reset ved næste recording-start.
     @Published public private(set) var lastTranscribeMs: Int? = nil
@@ -194,6 +207,9 @@ public final class SagaController: ObservableObject {
         } else {
             self.activeLanguage = .default
         }
+        // Journal default OFF — brugeren skal opt-in. UserDefaults.bool returnerer
+        // false for ikke-eksisterende key, hvilket matcher default OFF.
+        self.journalEnabled = UserDefaults.standard.bool(forKey: "journalEnabled")
     }
 
     public var menuBarIconName: String {
@@ -534,6 +550,11 @@ public final class SagaController: ObservableObject {
                     audioSeconds: pcm.duration,
                     inferenceMs: transcript.inferenceMs
                 )
+                // Append til daily journal hvis aktiveret. Bruger den oprindelige
+                // transcript (ikke post-processed) så journal er ren rå-tale.
+                if journalEnabled {
+                    journal.append(text: transcript.text)
+                }
 
                 // Vocabulary post-processing — anvend brugerens egennavne/akronymer
                 // på den rå transcript før mode-routing. Bevarer den oprindelige

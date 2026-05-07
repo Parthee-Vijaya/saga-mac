@@ -40,6 +40,36 @@ struct GeneralSettingsTab: View {
                     }
                 }
 
+                SettingsCard(
+                    "Daily voice-journal",
+                    footer: "Hver dictation appendes til ~/Saga-journal/YYYY-MM-DD.md med timestamp. Brugbar til reflective journaling og møde-noter samlet ét sted."
+                ) {
+                    SettingsRow(
+                        "Aktivér daily journal",
+                        subtitle: "Skriver alle transkriptioner til markdown-fil per dag. Default OFF."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.journalEnabled },
+                            set: { controller.journalEnabled = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+                    if controller.journalEnabled {
+                        Divider().padding(.vertical, 4)
+                        SettingsRow(
+                            "Journal-mappe",
+                            subtitle: controller.journal.directory.path
+                        ) {
+                            Button("Åbn") {
+                                controller.journal.revealInFinder()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
                 SettingsCard("Push-to-talk") {
                     SettingsRow(
                         "Hotkey",
