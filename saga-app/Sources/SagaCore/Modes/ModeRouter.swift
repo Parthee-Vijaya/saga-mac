@@ -157,7 +157,41 @@ public final class ModeRouter: ObservableObject {
         }
 
         guard let match = matchMode(in: trimmed) else {
-            // Ingen mode → pure dictation
+            // Ingen trigger matchede. Fallback: hvis transcripten LIGNER en
+            // reminder/calendar-anmodning (heuristik på tids- og handlings-
+            // keywords), spørg LLM. Canary mishører ofte trigger-fraser
+            // (fx "mind mig om" → "Det regnede"), så streng prefix-match
+            // alene er ikke pålidelig.
+            if IntentClassifier.looksLikeIntent(trimmed) {
+                let intent = await IntentClassifier.classify(trimmed, controller: controller)
+                switch intent {
+                case .reminder:
+                    log.info("Intent-fallback: reminder")
+                    let marker = Mode(id: "reminder", title: "Reminder", triggers: ReminderMode.triggers, systemPrompt: "")
+                    activeMode = marker
+                    defer { activeMode = nil }
+                    do {
+                        let confirmation = try await ReminderMode.run(payload: trimmed, controller: controller)
+                        return RouteResult(text: confirmation, mode: marker)
+                    } catch {
+                        throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+                    }
+                case .calendar:
+                    log.info("Intent-fallback: calendar")
+                    let marker = Mode(id: "calendar", title: "Kalender", triggers: CalendarMode.triggers, systemPrompt: "")
+                    activeMode = marker
+                    defer { activeMode = nil }
+                    do {
+                        let confirmation = try await CalendarMode.run(payload: trimmed, controller: controller)
+                        return RouteResult(text: confirmation, mode: marker)
+                    } catch {
+                        throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+                    }
+                case .dictation:
+                    return RouteResult(text: trimmed, mode: nil)
+                }
+            }
+            // Ingen heuristik-match → pure dictation
             return RouteResult(text: trimmed, mode: nil)
         }
 
