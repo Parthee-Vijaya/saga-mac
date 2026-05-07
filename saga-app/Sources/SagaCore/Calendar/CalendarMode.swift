@@ -152,7 +152,12 @@ public enum CalendarMode {
     }
 
     private static func formatConfirmation(_ event: CreatedEvent) -> String {
-        return "✓ Møde: \(event.formattedSummary)"
+        // Eksplicit ift. hvor mødet er gemt så bruger ved hvad der er sket.
+        let endFormatter = DateFormatter()
+        endFormatter.locale = Locale(identifier: "da_DK")
+        endFormatter.dateFormat = "HH:mm"
+        let endTime = endFormatter.string(from: event.end)
+        return "✓ Puttet kalender i Apple Kalender: \(event.formattedSummary) - \(endTime)"
     }
 }
 

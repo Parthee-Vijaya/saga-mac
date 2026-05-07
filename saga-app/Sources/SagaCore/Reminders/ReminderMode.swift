@@ -119,8 +119,16 @@ public enum ReminderMode {
     }
 
     private static func formatConfirmation(_ reminder: ScheduledReminder) -> String {
-        // Det er det Saga skriver tilbage ved cursor — kort og tydeligt
-        return "✓ Reminder: \(reminder.title) \(reminder.formattedFireDate)"
+        // Det er det Saga skriver tilbage ved cursor — eksplicit ift. hvor
+        // påmindelsen er gemt så bruger ved hvad der er sket.
+        let location: String
+        switch reminder.backend {
+        case .appleReminders:
+            location = "Puttet reminder i Apple Reminders"
+        case .localNotification:
+            location = "Puttet reminder lokalt"
+        }
+        return "✓ \(location): \(reminder.title) \(reminder.formattedFireDate)"
     }
 }
 
