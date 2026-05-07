@@ -16,7 +16,7 @@ public final class LMStudioBridge: @unchecked Sendable {
     public static let commonPorts: [Int] = [1234, 1235, 8080, 5000, 11434, 8000]
 
     public init(baseURL: URL = URL(string: "http://localhost:1234/v1")!,
-                model: String = "gemma-4-26b-a4b") {
+                model: String = "openai/gpt-oss-20b") {
         self._baseURL = baseURL
         self._model = model
 

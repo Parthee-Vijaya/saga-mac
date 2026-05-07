@@ -3,7 +3,7 @@ import SwiftUI
 struct VoiceSettingsTab: View {
     @EnvironmentObject private var controller: SagaController
     @AppStorage("lmStudioBaseURL") private var lmStudioBaseURL: String = "http://localhost:1234/v1"
-    @AppStorage("lmStudioModel") private var lmStudioModel: String = "gemma-4-26b-a4b"
+    @AppStorage("lmStudioModel") private var lmStudioModel: String = "openai/gpt-oss-20b"
 
     var body: some View {
         ScrollView {
