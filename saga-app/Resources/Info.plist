@@ -28,12 +28,20 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Saga indsætter transkriberet tekst ved markøren via system-events.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Saga opretter møder i Apple Kalender når du dikterer kalender-events.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Saga opretter møder i Apple Kalender når du dikterer kalender-events.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Parthee Vijaya</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Saga bruger mikrofonen til at lytte når du holder Fn-tasten nede, så din tale kan transkriberes til tekst.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Saga opretter reminders i Apple Reminders så de synker til iPhone og Watch.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Saga opretter reminders i Apple Reminders så de synker til iPhone og Watch.</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Saga bruger skærmoptagelse til vision-mode, hvor den kan beskrive eller besvare spørgsmål om indholdet på skærmen.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

@@ -56,6 +56,10 @@ targets:
         NSAppleEventsUsageDescription: "Saga indsætter transkriberet tekst ved markøren via system-events."
         NSScreenCaptureUsageDescription: "Saga bruger skærmoptagelse til vision-mode, hvor den kan beskrive eller besvare spørgsmål om indholdet på skærmen."
         NSSpeechRecognitionUsageDescription: "Saga bruger Apple's on-device speech recognition til at lytte efter wake-word ('Hej Saga'). Audio sendes ikke til Apple's cloud."
+        NSRemindersUsageDescription: "Saga opretter reminders i Apple Reminders så de synker til iPhone og Watch."
+        NSRemindersFullAccessUsageDescription: "Saga opretter reminders i Apple Reminders så de synker til iPhone og Watch."
+        NSCalendarsUsageDescription: "Saga opretter møder i Apple Kalender når du dikterer kalender-events."
+        NSCalendarsFullAccessUsageDescription: "Saga opretter møder i Apple Kalender når du dikterer kalender-events."
         # Sparkle auto-update — opdatér efter EdDSA-keypair er genereret + appcast er hostet.
         # Generér public key via: ./Tools/generate_keys (kommer med Sparkle-CLI)
         # Se docs/RELEASE.md for fuld setup-guide.
