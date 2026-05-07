@@ -72,11 +72,13 @@ public enum CalendarMode {
         let nowString = isoFormatter.string(from: Date())
         let systemPrompt = String(format: systemPromptTemplate, nowString)
 
+        // maxTokens 4000 — giver reasoning-modeller (gemma-4-26b-a4b,
+        // gpt-oss-20b m.fl.) plads til BÅDE intern tænkning OG faktisk JSON-output.
         let raw = try await controller.lmStudio.chat(
             system: systemPrompt,
             user: payload,
             temperature: 0.1,
-            maxTokens: 512
+            maxTokens: 4000
         )
         log.debug("LLM raw: \(raw, privacy: .public)")
 

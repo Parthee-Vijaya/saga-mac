@@ -45,12 +45,13 @@ public enum VisionMode {
 
         log.info("Captured \(imageData.count, privacy: .public) bytes PNG, prompt=\"\(prompt.prefix(80), privacy: .public)\"")
 
+        // maxTokens 4000 — reasoning-modeller har plads til thinking + svar
         let response = try await controller.lmStudio.chatWithImage(
             system: "Du er en hjælpsom assistent der beskriver skærmbilleder kort og præcist. Svar altid på dansk medmindre brugeren spørger på et andet sprog.",
             userText: prompt,
             imagePNG: imageData,
             temperature: 0.3,
-            maxTokens: 512
+            maxTokens: 4000
         )
 
         return response.trimmingCharacters(in: .whitespacesAndNewlines)
