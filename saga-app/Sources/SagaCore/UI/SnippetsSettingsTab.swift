@@ -31,6 +31,23 @@ struct SnippetsSettingsTab: View {
                     }
                 }
 
+                SettingsCard(
+                    "iCloud-sync",
+                    footer: "Når aktiv: snippets gemmes i ~/Library/Mobile Documents/com~apple~CloudDocs/Saga/snippets.json og synker mellem alle dine Macs der har iCloud Drive aktiveret. Slukket: snippets gemmes lokalt på denne Mac."
+                ) {
+                    SettingsRow(
+                        "Sync via iCloud Drive",
+                        subtitle: controller.snippets.iCloudStatus.displayLabel
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.snippets.useICloudSync },
+                            set: { controller.snippets.useICloudSync = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+                }
+
                 if controller.snippets.entries.isEmpty {
                     SettingsCard("Dine snippets") {
                         VStack(spacing: 8) {
