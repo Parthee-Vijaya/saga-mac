@@ -46,6 +46,9 @@ public final class ModeRouter: ObservableObject {
         if VisionMode.matches(trimmed).matched {
             return Mode(id: "vision", title: "Vision", triggers: VisionMode.triggers, systemPrompt: "")
         }
+        if OdinMode.matches(trimmed).matched {
+            return Mode(id: "odin", title: "Odin", triggers: OdinMode.triggers, systemPrompt: "")
+        }
         // EditMode preview kræver kun trigger-match. Faktisk aktivering tjekker
         // også at der findes en selection — men her ved preview ved vi ikke om
         // brugeren har markeret noget endnu på tale-tidspunktet.
@@ -93,6 +96,22 @@ public final class ModeRouter: ObservableObject {
             do {
                 let description = try await VisionMode.run(payload: visionMatch.payload, controller: controller)
                 return RouteResult(text: description, mode: marker)
+            } catch {
+                throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+            }
+        }
+
+        // Odin-mode er special-cased — kalder Odin RAG-daemon (port 3838) i stedet
+        // for LM Studio og inserter top-3 hits ved cursor.
+        let odinMatch = OdinMode.matches(trimmed)
+        if odinMatch.matched {
+            log.info("Match: odin, query=\(odinMatch.query.prefix(80))")
+            let marker = Mode(id: "odin", title: "Odin", triggers: OdinMode.triggers, systemPrompt: "")
+            activeMode = marker
+            defer { activeMode = nil }
+            do {
+                let result = try await OdinMode.run(query: odinMatch.query, controller: controller)
+                return RouteResult(text: result, mode: marker)
             } catch {
                 throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
             }
