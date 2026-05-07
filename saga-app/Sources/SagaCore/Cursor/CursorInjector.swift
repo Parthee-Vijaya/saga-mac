@@ -14,8 +14,47 @@ public final class CursorInjector {
 
     public init() {}
 
+    /// Kendte Electron-apps der opslugir CGEvent unicode-injection. For dem
+    /// bruger vi paste-flow fra start (sparer ~80ms latency vs prøv-først-
+    /// fall-back-strategien).
+    private static let electronAppBundleIDs: Set<String> = [
+        "com.anthropic.claudefordesktop",  // Claude
+        "com.tinyspeck.slackmacgap",       // Slack
+        "com.microsoft.VSCode",            // VS Code
+        "com.figma.Desktop",               // Figma
+        "com.todoist.mac.Todoist",         // Todoist
+        "com.electron.notion",             // Notion
+        "notion.id",                       // Notion (alt. ID)
+        "com.discord.discord",             // Discord
+        "com.spotify.client",              // Spotify
+        "md.obsidian",                     // Obsidian
+        "com.linear",                      // Linear
+        "com.hnc.Discord",                 // Discord (alt. ID)
+        "com.github.GitHubClient",         // GitHub Desktop
+        "com.postmanlabs.mac",             // Postman
+        "com.tdesktop.Telegram",           // Telegram (uses Electron-like)
+    ]
+
+    /// True hvis frontmost app sandsynligvis er en Electron-app baseret på
+    /// bundleId. Bruges af type() til at vælge optimal injection-strategi.
+    public static func isLikelyElectronApp(_ bundleId: String?) -> Bool {
+        guard let bundleId else { return false }
+        return electronAppBundleIDs.contains(bundleId)
+    }
+
     public func type(_ text: String) {
         guard !text.isEmpty else { return }
+
+        // Electron-apps opslugir ofte CGEvent unicode-injection — paste fra
+        // start frem for at spilde tid på at prøve unicode-keyboard først.
+        // Sparer ~80ms latency for de mest almindelige apps.
+        let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if Self.isLikelyElectronApp(frontmost) {
+            log.info("Frontmost \(frontmost ?? "?", privacy: .public) er Electron — bruger paste-strategi fra start")
+            paste(text)
+            return
+        }
+
         let utf16 = Array(text.utf16)
         log.info("Indsætter \(utf16.count, privacy: .public) UTF-16 chars: \"\(text.prefix(80), privacy: .public)\"")
 
