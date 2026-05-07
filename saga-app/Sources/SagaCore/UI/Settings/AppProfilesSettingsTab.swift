@@ -7,6 +7,7 @@ struct AppProfilesSettingsTab: View {
     @State private var editingProfile: AppProfile?
     @State private var showAddSheet: Bool = false
     @State private var showDeleteAllConfirm: Bool = false
+    @State private var showPresetsSheet: Bool = false
 
     var body: some View {
         ScrollView {
@@ -74,6 +75,11 @@ struct AppProfilesSettingsTab: View {
                         }
                     }
                     Spacer()
+                    Button {
+                        showPresetsSheet = true
+                    } label: {
+                        Label("Hurtig-opsætning", systemImage: "wand.and.stars")
+                    }
                     if let frontmost = controller.appProfiles.frontmostAppInfo() {
                         Button {
                             // Hurtig "Tilføj profil for current app" — pre-fyldt med frontmost
@@ -103,6 +109,10 @@ struct AppProfilesSettingsTab: View {
             AppProfileEditor(profile: AppProfile(bundleIdentifier: "", displayName: ""))
                 .environmentObject(controller)
         }
+        .sheet(isPresented: $showPresetsSheet) {
+            AppProfilePresetsSheet()
+                .environmentObject(controller)
+        }
         .confirmationDialog(
             "Slet alle app-profiler?",
             isPresented: $showDeleteAllConfirm,
@@ -113,6 +123,179 @@ struct AppProfilesSettingsTab: View {
             }
             Button("Annuller", role: .cancel) {}
         }
+    }
+}
+
+// MARK: - Presets-sheet (hurtig-opsætning af populære apps)
+
+struct AppProfilePresetsSheet: View {
+    @EnvironmentObject private var controller: SagaController
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedIDs: Set<String> = []
+
+    private var available: [AppProfilePreset] {
+        AppProfilePresets.unused(existing: controller.appProfiles.profiles)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Hurtig-opsætning")
+                    .font(.system(size: 16, weight: .semibold))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+
+            Text("Vælg apps du vil oprette profiler for. Saga bruger sensible defaults — du kan altid redigere bagefter.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
+
+            if available.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.green.opacity(0.7))
+                    Text("Du har allerede oprettet profiler for alle preset-apps")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(available) { preset in
+                            PresetRow(
+                                preset: preset,
+                                isSelected: selectedIDs.contains(preset.id),
+                                onToggle: {
+                                    if selectedIDs.contains(preset.id) {
+                                        selectedIDs.remove(preset.id)
+                                    } else {
+                                        selectedIDs.insert(preset.id)
+                                    }
+                                }
+                            )
+                            if preset.id != available.last?.id {
+                                Divider().padding(.leading, 56)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+
+            Divider()
+
+            HStack {
+                if !available.isEmpty {
+                    Button(selectedIDs.count == available.count ? "Fravælg alle" : "Vælg alle") {
+                        if selectedIDs.count == available.count {
+                            selectedIDs.removeAll()
+                        } else {
+                            selectedIDs = Set(available.map { $0.id })
+                        }
+                    }
+                }
+                Spacer()
+                Button("Annuller") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Opret \(selectedIDs.count) profiler") {
+                    addSelected()
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(selectedIDs.isEmpty)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+        }
+        .frame(width: 540, height: 580)
+    }
+
+    private func addSelected() {
+        for preset in available where selectedIDs.contains(preset.id) {
+            let profile = AppProfile(
+                bundleIdentifier: preset.bundleIdentifier,
+                displayName: preset.displayName,
+                forcedModeId: preset.suggestedModeId,
+                stenografOverride: preset.stenografOverride,
+                languageCode: nil,
+                enabled: true
+            )
+            controller.appProfiles.add(profile)
+        }
+    }
+}
+
+private struct PresetRow: View {
+    let preset: AppProfilePreset
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .accentColor : .secondary.opacity(0.5))
+                    .font(.system(size: 18))
+                    .padding(.top, 2)
+
+                Image(systemName: preset.icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 26)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(preset.displayName)
+                            .font(.system(size: 13, weight: .semibold))
+                        if let modeId = preset.suggestedModeId {
+                            Text(modeId)
+                                .font(.system(size: 9, weight: .semibold))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.accentColor.opacity(0.18))
+                                .foregroundColor(.accentColor)
+                                .clipShape(Capsule())
+                        }
+                        if preset.stenografOverride == true {
+                            Text("stenograf")
+                                .font(.system(size: 9, weight: .semibold))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.orange.opacity(0.18))
+                                .foregroundColor(.orange)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    Text(preset.rationale)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(preset.bundleIdentifier)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
