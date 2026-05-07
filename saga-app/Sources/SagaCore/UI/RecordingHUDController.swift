@@ -345,8 +345,13 @@ struct RecordingHUDView: View {
                         .monospacedDigit()
                 }
                 // Linje 2: engine + mic badges side om side
+                // Privacy-mode: erstat engine-badge med shield-badge
                 HStack(spacing: 4) {
-                    EngineBadge(label: controller.lastEngineLabel ?? activeEngineHint)
+                    if controller.privacyMode {
+                        PrivacyBadge()
+                    } else {
+                        EngineBadge(label: controller.lastEngineLabel ?? activeEngineHint)
+                    }
                     MicrophoneBadge(deviceName: audio.currentInputDeviceName)
                 }
             }
@@ -735,6 +740,32 @@ struct EngineBadge: View {
                 )
         )
         .help("Kører lokalt på din Mac — ingen audio eller tekst sendes til skyen")
+    }
+}
+
+// MARK: - Privacy badge
+
+/// Erstatter EngineBadge når privacy-mode er aktivt. Viser shield-ikon
+/// med tooltip om hvad det betyder.
+struct PrivacyBadge: View {
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 8, weight: .semibold))
+            Text("Privat")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+        }
+        .foregroundColor(SagaColors.warning)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(SagaColors.warning.opacity(0.15))
+                .overlay(
+                    Capsule().strokeBorder(SagaColors.warning.opacity(0.4), lineWidth: 0.5)
+                )
+        )
+        .help("Privacy-mode aktivt — denne dictation gemmes ikke i historik, stats eller journal")
     }
 }
 

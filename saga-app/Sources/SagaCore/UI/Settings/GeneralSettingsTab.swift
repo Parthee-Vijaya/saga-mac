@@ -21,6 +21,18 @@ struct GeneralSettingsTab: View {
                         .toggleStyle(.switch)
                         .labelsHidden()
                     }
+                    Divider().padding(.vertical, 4)
+                    SettingsRow(
+                        "Privacy-mode",
+                        subtitle: "Når aktiv: stats, history og journal opdateres ikke. HUD viser shield-ikon. Ikke persisteret — slukker ved app-genstart."
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { controller.privacyMode },
+                            set: { controller.privacyMode = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
                 }
 
                 SettingsCard(

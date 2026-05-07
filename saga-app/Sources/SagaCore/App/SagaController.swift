@@ -67,6 +67,29 @@ public final class SagaController: ObservableObject {
         }
     }
 
+    /// Privacy-mode: når aktiv suspenderes al history-logging (HistoryStore +
+    /// TranscriptionStats + JournalStore). Brugbart når du dikterer fortrolige
+    /// data (adgangskoder, kreditkort osv.). HUD viser shield-badge i stedet
+    /// for engine-badge så brugeren ser at det er aktivt. IKKE persisteret —
+    /// nulstilles ved hver app-start.
+    @Published public var privacyMode: Bool = false {
+        didSet {
+            log.info("Privacy mode: \(self.privacyMode ? "TIL" : "FRA", privacy: .public)")
+        }
+    }
+
+    /// Toggle privacy-mode. Kaldes fra menubar-shortcut og Settings.
+    public func togglePrivacyMode() {
+        privacyMode.toggle()
+    }
+
+    /// Wrapper omkring history.append der skipper hvis privacy-mode er aktiv.
+    /// Bruges fra alle 4 success-paths i handleHoldEnd.
+    private func recordHistoryEntryIfAllowed(_ entry: TranscriptEntry) {
+        guard !privacyMode else { return }
+        history.append(entry)
+    }
+
     /// Seneste transkriberings-latens i millisekunder. Vises i HUD ved siden
     /// af timeren. Reset ved næste recording-start.
     @Published public private(set) var lastTranscribeMs: Int? = nil
@@ -548,15 +571,21 @@ public final class SagaController: ObservableObject {
                 // Track engine + latency for HUD-display + stats
                 lastTranscribeMs = transcript.inferenceMs
                 lastEngineLabel = effectiveLanguage.usesCanary ? "Canary" : "Apple Speech"
-                stats.record(
-                    text: transcript.text,
-                    audioSeconds: pcm.duration,
-                    inferenceMs: transcript.inferenceMs
-                )
-                // Append til daily journal hvis aktiveret. Bruger den oprindelige
-                // transcript (ikke post-processed) så journal er ren rå-tale.
-                if journalEnabled {
-                    journal.append(text: transcript.text)
+
+                // Privacy-mode: skip ALT history-logging når aktivt.
+                // Stats, journal og history.append nedenstrøms skal alle
+                // respektere flag'et.
+                if !privacyMode {
+                    stats.record(
+                        text: transcript.text,
+                        audioSeconds: pcm.duration,
+                        inferenceMs: transcript.inferenceMs
+                    )
+                    if journalEnabled {
+                        journal.append(text: transcript.text)
+                    }
+                } else {
+                    log.info("Privacy mode aktivt — skipper stats + journal + history")
                 }
 
                 // Vocabulary post-processing — anvend brugerens egennavne/akronymer
@@ -601,7 +630,7 @@ public final class SagaController: ObservableObject {
                         // Bring target-app forrest så fokus er korrekt selv hvis
                         // brugeren klikkede væk mens LLM tænkte.
                         cursor.paste(edited, restoringFocusToPID: editTargetPID)
-                        history.append(TranscriptEntry(
+                        recordHistoryEntryIfAllowed(TranscriptEntry(
                             rawText: transcript.text,
                             processedText: edited,
                             modeId: "edit",
@@ -647,7 +676,7 @@ public final class SagaController: ObservableObject {
                             controller: self
                         )
                         cursor.type(result)
-                        history.append(TranscriptEntry(
+                        recordHistoryEntryIfAllowed(TranscriptEntry(
                             rawText: transcript.text,
                             processedText: result,
                             modeId: "inline-edit",
@@ -675,7 +704,7 @@ public final class SagaController: ObservableObject {
                     // Stenograf-mode: skip alt mode-routing, gå direkte til cursor.
                     let cleanText = correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     cursor.type(cleanText)
-                    history.append(TranscriptEntry(
+                    recordHistoryEntryIfAllowed(TranscriptEntry(
                         rawText: transcript.text,
                         processedText: cleanText,
                         modeId: nil,
@@ -715,7 +744,7 @@ public final class SagaController: ObservableObject {
 
                 cursor.type(result.text)
 
-                history.append(TranscriptEntry(
+                recordHistoryEntryIfAllowed(TranscriptEntry(
                     rawText: transcript.text,
                     processedText: result.text,
                     modeId: result.mode?.id,

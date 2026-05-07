@@ -45,10 +45,17 @@ private struct MenuBarLabel: View {
         // Saga's logo: omvendt trekant. Roteret 180° så spidsen peger nedad.
         // Symbol-effects per state: pulse under recording, variableColor under
         // transcribing/routing for at indikere aktivitet uden at skifte ikon.
-        Image(systemName: "triangle.fill")
-            .rotationEffect(.degrees(180))
-            .symbolEffect(.pulse, isActive: controller.state == .recording)
-            .symbolEffect(.variableColor.iterative, isActive: controller.state == .transcribing || controller.state == .routing)
+        // Privacy-mode: erstat med shield-ikon for at signalere "no history".
+        Group {
+            if controller.privacyMode {
+                Image(systemName: "shield.lefthalf.filled")
+            } else {
+                Image(systemName: "triangle.fill")
+                    .rotationEffect(.degrees(180))
+                    .symbolEffect(.pulse, isActive: controller.state == .recording)
+                    .symbolEffect(.variableColor.iterative, isActive: controller.state == .transcribing || controller.state == .routing)
+            }
+        }
     }
 }
 
