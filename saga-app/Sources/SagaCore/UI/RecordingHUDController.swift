@@ -140,10 +140,15 @@ public final class RecordingHUDController {
         win.collectionBehavior = [.canJoinAllSpaces, .stationary]
         win.contentView = host
 
-        if let screen = NSScreen.main {
-            let rect = screen.visibleFrame
+        // Vælg skærmen hvor cursor er (multi-monitor awareness) i stedet for
+        // NSScreen.main. Hvis cursor ikke kan findes på nogen skærm, fall back
+        // til main. Bottom-margin 200pt så HUD sidder lidt højere — over dock
+        // og dens shadow uanset om dock er stor eller skjult.
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        if let rect = screen?.visibleFrame {
             let x = rect.midX - width / 2
-            let y = rect.minY + 100
+            let y = rect.minY + 200
             win.setFrameOrigin(NSPoint(x: x, y: y))
         }
 
