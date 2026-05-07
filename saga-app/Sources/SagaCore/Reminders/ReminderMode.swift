@@ -9,11 +9,23 @@ public enum ReminderMode {
     private static let log = Logger(subsystem: "dk.parthee.saga", category: "reminder-mode")
 
     public static let triggers: [String] = [
+        // Korrekt dansk
         "mind mig om",
         "mind mig om at",
-        "remind me to",
+        "mind mig på",
+        // Canary ASR-mishør: "mind" tolkes ofte som "minde" eller "minder"
+        "minde mig om",
+        "minde mig om at",
+        "minder mig om",
+        "minder mig om at",
+        // Alternative formuleringer
+        "påmind mig om",
+        "påmind mig",
         "påmindelse:",
         "reminder:",
+        // Engelsk
+        "remind me to",
+        "remind me about",
     ]
 
     public static func matches(_ text: String) -> (matched: Bool, payload: String) {

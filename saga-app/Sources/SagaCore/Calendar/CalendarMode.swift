@@ -12,14 +12,30 @@ public enum CalendarMode {
     private static let log = Logger(subsystem: "dk.parthee.saga", category: "calendar-mode")
 
     public static let triggers: [String] = [
+        // Booking-fraser
         "book møde",
         "book et møde",
-        "book mode",  // tolerance for stenograf-fejl
+        "book mode",  // tolerance for ASR-stenograf-fejl
+        "book aftale",
         "book en aftale",
+        "book mig",
+        "book et",
+        // Lav-fraser (alternativt sprogbrug)
+        "lav møde",
+        "lav et møde",
+        "lav aftale",
+        "lav en aftale",
+        // Indkaldelses-fraser
+        "indkald til møde",
+        "indkald møde",
+        // Frase-baserede
         "kalender:",
         "møde med",
+        "aftale med",
+        // Engelsk
         "schedule meeting",
         "schedule a meeting",
+        "schedule a",
     ]
 
     public static func matches(_ text: String) -> (matched: Bool, payload: String) {
@@ -28,10 +44,12 @@ public enum CalendarMode {
             if lower.hasPrefix(trigger.lowercased()) {
                 let payload = String(text.dropFirst(trigger.count))
                     .trimmingCharacters(in: CharacterSet(charactersIn: " ,.:"))
-                // "møde med" er specielt — payload skal beholde "med X" så LLM
-                // ved hvem deltagerne er. Vi prepender derfor "møde med" tilbage.
-                if trigger.lowercased() == "møde med" {
-                    return (true, "møde med " + payload)
+                // "møde med" / "aftale med" er specielle — payload skal beholde
+                // "med X" så LLM ved hvem deltagerne er. Vi prepender trigger
+                // tilbage så LLM ser den fulde frase.
+                let lowered = trigger.lowercased()
+                if lowered == "møde med" || lowered == "aftale med" {
+                    return (true, trigger + " " + payload)
                 }
                 return (true, payload)
             }
