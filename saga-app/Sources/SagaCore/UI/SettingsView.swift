@@ -26,7 +26,7 @@ public struct SettingsView: View {
             SnippetsSettingsTab()
                 .tabItem { Label("Snippets", systemImage: "text.bubble") }
             RemindersSettingsTab()
-                .tabItem { Label("Reminders", systemImage: "bell") }
+                .tabItem { Label("Reminders & Kalender", systemImage: "bell") }
             AboutTab()
                 .tabItem { Label("Om", systemImage: "info.circle") }
         }

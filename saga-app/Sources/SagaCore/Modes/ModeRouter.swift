@@ -43,6 +43,9 @@ public final class ModeRouter: ObservableObject {
         if ReminderMode.matches(trimmed).matched {
             return Mode(id: "reminder", title: "Reminder", triggers: ReminderMode.triggers, systemPrompt: "")
         }
+        if CalendarMode.matches(trimmed).matched {
+            return Mode(id: "calendar", title: "Kalender", triggers: CalendarMode.triggers, systemPrompt: "")
+        }
         if VisionMode.matches(trimmed).matched {
             return Mode(id: "vision", title: "Vision", triggers: VisionMode.triggers, systemPrompt: "")
         }
@@ -80,6 +83,21 @@ public final class ModeRouter: ObservableObject {
             defer { activeMode = nil }
             do {
                 let confirmation = try await ReminderMode.run(payload: reminderMatch.payload, controller: controller)
+                return RouteResult(text: confirmation, mode: marker)
+            } catch {
+                throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)
+            }
+        }
+
+        // Calendar-mode er special-cased — opretter EKEvent direkte i Apple Kalender
+        let calendarMatch = CalendarMode.matches(trimmed)
+        if calendarMatch.matched {
+            log.info("Match: calendar, payload=\(calendarMatch.payload.prefix(80))")
+            let marker = Mode(id: "calendar", title: "Kalender", triggers: CalendarMode.triggers, systemPrompt: "")
+            activeMode = marker
+            defer { activeMode = nil }
+            do {
+                let confirmation = try await CalendarMode.run(payload: calendarMatch.payload, controller: controller)
                 return RouteResult(text: confirmation, mode: marker)
             } catch {
                 throw ModeError.lmStudioFailed(rawTranscript: trimmed, underlying: error)

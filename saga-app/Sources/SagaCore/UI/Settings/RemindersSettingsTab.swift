@@ -10,6 +10,9 @@ struct RemindersSettingsTab: View {
                 listPickerCard
                 fallbackPermissionCard
                 scheduledListCard
+                Divider().padding(.vertical, 4)
+                appleCalendarCard
+                calendarPickerCard
             }
             .padding(20)
         }
@@ -105,6 +108,80 @@ struct RemindersSettingsTab: View {
                         Task { _ = await controller.reminders.requestPermissionIfNeeded() }
                     }
                     .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    // MARK: - Apple Calendar (EventKit)
+
+    private var appleCalendarCard: some View {
+        SettingsCard(
+            "Apple Kalender",
+            footer: "Når aktiv: voice-events oprettes i Apple Kalender. Sig 'book møde med Lars i morgen kl 14 til 15 om Q3'."
+        ) {
+            SettingsRow(
+                "Brug Apple Kalender",
+                subtitle: controller.appleCalendar.useAppleCalendar
+                    ? "Aktiv — voice-events havner i kalender"
+                    : "Slukket — kalender-mode er disabled"
+            ) {
+                Toggle("", isOn: Binding(
+                    get: { controller.appleCalendar.useAppleCalendar },
+                    set: { newValue in
+                        controller.appleCalendar.useAppleCalendar = newValue
+                        if newValue {
+                            Task { _ = await controller.appleCalendar.requestPermission() }
+                        }
+                    }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+            }
+
+            Divider().padding(.vertical, 4)
+
+            HStack(spacing: 10) {
+                Image(systemName: controller.appleCalendar.permissionGranted ? "checkmark.circle.fill" : "exclamationmark.circle")
+                    .foregroundColor(controller.appleCalendar.permissionGranted ? .green : .orange)
+                Text(controller.appleCalendar.permissionGranted ? "Calendar-adgang tilladt" : "Calendar-adgang mangler")
+                    .font(.system(size: 13))
+                Spacer()
+                if !controller.appleCalendar.permissionGranted {
+                    Button("Spørg") {
+                        Task { _ = await controller.appleCalendar.requestPermission() }
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var calendarPickerCard: some View {
+        if controller.appleCalendar.useAppleCalendar, controller.appleCalendar.permissionGranted, !controller.appleCalendar.availableCalendars.isEmpty {
+            SettingsCard(
+                "Default kalender",
+                footer: "Hvor nye events gemmes. Vælg fx 'Arbejde' eller 'Personlig' afhængig af hvor du vil have voice-bookede møder."
+            ) {
+                SettingsRow(
+                    "Kalender",
+                    subtitle: "Vælg den kalender hvor 'book møde'-events havner"
+                ) {
+                    Picker("", selection: Binding(
+                        get: { controller.appleCalendar.calendarID ?? "__default__" },
+                        set: { newValue in
+                            controller.appleCalendar.calendarID = newValue == "__default__" ? nil : newValue
+                        }
+                    )) {
+                        Text("Standard").tag("__default__")
+                        ForEach(controller.appleCalendar.availableCalendars) { cal in
+                            Text(cal.displayName).tag(cal.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: 240)
                 }
             }
         }

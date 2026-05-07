@@ -26,6 +26,7 @@ public final class SagaController: ObservableObject {
     public let health: HealthMonitor
     public let history: HistoryStore
     public let reminders: ReminderEngine
+    public let appleCalendar: CalendarEngine
     public let vision: ScreenVision
     public let documents: DocumentAnalyzer
     public let wakeWord: WakeWordDetector
@@ -199,6 +200,7 @@ public final class SagaController: ObservableObject {
         self.health = HealthMonitor()
         self.history = HistoryStore()
         self.reminders = ReminderEngine()
+        self.appleCalendar = CalendarEngine()
         self.vision = ScreenVision()
         self.documents = DocumentAnalyzer()
         self.wakeWord = WakeWordDetector()
