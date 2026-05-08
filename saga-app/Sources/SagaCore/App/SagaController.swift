@@ -19,6 +19,7 @@ public final class SagaController: ObservableObject {
     public let audio: AudioCapture
     public let cursor: CursorInjector
     public let asr: CanaryASRBridge
+    public let hviske: HviskeASRBridge
     public let appleSpeech: AppleSpeechBridge
     public let asrRouter: MultilingualASRRouter
     public let lmStudio: LMStudioBridge
@@ -187,14 +188,27 @@ public final class SagaController: ObservableObject {
         }
     }
 
+    /// Foretrukken ASR-engine for dansk. Andre sprog bruger altid Canary
+    /// eller Apple Speech (Hviske er dansk-only). Default = .canary fordi
+    /// Hviske-bridgen er stub indtil hviske-coreml-projektet er færdigt.
+    /// MultilingualASRRouter falder tilbage til Canary hvis Hviske er valgt
+    /// men ikke er klar.
+    @Published public var preferredDanishEngine: DanishEngine {
+        didSet {
+            UserDefaults.standard.set(preferredDanishEngine.rawValue, forKey: "preferredDanishEngine")
+            log.info("Foretrukken dansk-engine: \(self.preferredDanishEngine.rawValue, privacy: .public)")
+        }
+    }
+
     public init() {
         self.hud = RecordingHUDController()
         self.hotkeys = HotkeyManager()
         self.audio = AudioCapture()
         self.cursor = CursorInjector()
         self.asr = CanaryASRBridge()
+        self.hviske = HviskeASRBridge()
         self.appleSpeech = AppleSpeechBridge()
-        self.asrRouter = MultilingualASRRouter(canary: self.asr, apple: self.appleSpeech)
+        self.asrRouter = MultilingualASRRouter(canary: self.asr, hviske: self.hviske, apple: self.appleSpeech)
         self.lmStudio = LMStudioBridge()
         self.modes = ModeRouter()
         self.health = HealthMonitor()
@@ -234,6 +248,12 @@ public final class SagaController: ObservableObject {
             self.activeLanguage = lang
         } else {
             self.activeLanguage = .default
+        }
+        if let savedEngine = UserDefaults.standard.string(forKey: "preferredDanishEngine"),
+           let engine = DanishEngine(rawValue: savedEngine) {
+            self.preferredDanishEngine = engine
+        } else {
+            self.preferredDanishEngine = .canary
         }
         // Journal default OFF — brugeren skal opt-in. UserDefaults.bool returnerer
         // false for ikke-eksisterende key, hvilket matcher default OFF.
@@ -568,7 +588,11 @@ public final class SagaController: ObservableObject {
 
         Task { @MainActor in
             do {
-                let transcript = try await asrRouter.transcribe(pcm: pcm, language: effectiveLanguage)
+                let transcript = try await asrRouter.transcribe(
+                    pcm: pcm,
+                    language: effectiveLanguage,
+                    preferredDanishEngine: preferredDanishEngine
+                )
 
                 // Track engine + latency for HUD-display + stats
                 lastTranscribeMs = transcript.inferenceMs

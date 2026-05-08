@@ -31,6 +31,43 @@ struct VoiceSettingsTab: View {
                 }
 
                 SettingsCard(
+                    "Dansk ASR-engine",
+                    footer: "Vælger hvilken model der bruges når aktivt sprog er dansk. Hviske kommer som premium dansk-mode (kræver hviske-coreml er installeret — sideprojekt). Andre sprog bruger altid Canary eller Apple Speech."
+                ) {
+                    SettingsRow(
+                        "Engine",
+                        subtitle: controller.preferredDanishEngine.description
+                    ) {
+                        Picker("", selection: Binding(
+                            get: { controller.preferredDanishEngine },
+                            set: { controller.preferredDanishEngine = $0 }
+                        )) {
+                            ForEach(DanishEngine.allCases, id: \.self) { engine in
+                                Text(engine.displayName).tag(engine)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 220)
+                    }
+                    if controller.preferredDanishEngine == .hviske && !controller.hviske.isReady {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(SagaColors.warning)
+                                .font(.system(size: 11))
+                            Text(controller.hviske.state.label)
+                                .font(SagaTypography.caption)
+                                .foregroundColor(SagaColors.textSecondary)
+                            Spacer()
+                            Text("Falder tilbage til Canary")
+                                .font(SagaTypography.caption)
+                                .foregroundColor(SagaColors.textTertiary)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+
+                SettingsCard(
                     "Wake-word",
                     footer: "Saga lytter altid via Apples on-device speech recognition. Kræver permission. Default OFF."
                 ) {

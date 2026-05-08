@@ -17,22 +17,68 @@ public final class MultilingualASRRouter: @unchecked Sendable {
     ]
 
     private let canary: CanaryASRBridge
+    private let hviske: HviskeASRBridge
     private let apple: AppleSpeechBridge
 
-    public init(canary: CanaryASRBridge, apple: AppleSpeechBridge) {
+    public init(canary: CanaryASRBridge, hviske: HviskeASRBridge, apple: AppleSpeechBridge) {
         self.canary = canary
+        self.hviske = hviske
         self.apple = apple
     }
 
-    /// Transcribe `pcm` på det valgte sprog. Vælger Canary hvis sprog er
-    /// supporteret, ellers Apple Speech med en passende locale.
-    public func transcribe(pcm: CapturedAudio, language: SagaLanguage) async throws -> TranscribeResult {
+    /// Transcribe `pcm` på det valgte sprog. Routing-prioritet:
+    /// 1. Dansk + preferredDanishEngine = .hviske + Hviske er klar → Hviske
+    /// 2. Sprog supporteret af Canary → Canary
+    /// 3. Fallback → Apple Speech
+    public func transcribe(
+        pcm: CapturedAudio,
+        language: SagaLanguage,
+        preferredDanishEngine: DanishEngine = .canary
+    ) async throws -> TranscribeResult {
+        // Dansk + Hviske valgt + Hviske klar → brug Hviske
+        if language == .danish, preferredDanishEngine == .hviske, hviske.isReady {
+            log.info("Routing til Hviske for dansk")
+            do {
+                return try await hviske.transcribe(pcm: pcm, language: "da")
+            } catch {
+                log.warning("Hviske fejlede, falder tilbage til Canary: \(error.localizedDescription, privacy: .public)")
+                return try await canary.transcribe(pcm: pcm, language: "da")
+            }
+        }
+
         if Self.canarySupportedLanguages.contains(language.canaryCode) {
             log.info("Routing til Canary for \(language.canaryCode, privacy: .public)")
             return try await canary.transcribe(pcm: pcm, language: language.canaryCode)
         } else {
             log.info("Routing til Apple Speech for \(language.appleLocale, privacy: .public)")
             return try await apple.transcribe(pcm: pcm, languageCode: language.appleLocale)
+        }
+    }
+}
+
+/// ASR-engine valg for dansk dictation. Andre sprog bruger altid
+/// Canary eller Apple Speech (Hviske er dansk-only).
+public enum DanishEngine: String, CaseIterable, Sendable, Codable {
+    /// NVIDIA Canary-1b-v2 — multi-lingual baseline. Default.
+    case canary
+
+    /// syv.ai Hviske-v5.3 — premium dansk via custom Conformer.
+    /// Kræver hviske-coreml-projektet er færdigt (F1-F8).
+    case hviske
+
+    public var displayName: String {
+        switch self {
+        case .canary: return "Canary (multilingual)"
+        case .hviske: return "Hviske (dansk-først)"
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .canary:
+            return "NVIDIA Canary-1b-v2 — 25 EU-sprog, robust multilingual baseline. Default for alle sprog."
+        case .hviske:
+            return "syv.ai Hviske-v5.3 — Conformer 2B fine-tuned på dansk samtale-data. Bedre WER på naturlig tale, men kun dansk. Kræver hviske-coreml er installeret."
         }
     }
 }

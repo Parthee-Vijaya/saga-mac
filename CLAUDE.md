@@ -69,7 +69,7 @@ DMG-scriptet kræver at `../canary-coreml/models/mlpackage/` eksisterer (eller `
 
 `handleHoldStart` → `audio.start()` + start `LivePartialTranscriber` (Apple SFSpeechRecognizer parallel) → `handleHoldEnd` → `asrRouter.transcribe()` → vocabulary post-processing → filler-strip → snippet-expansion → `ModeRouter.route()` → `cursor.paste()` eller `cursor.typeAtCursor()`.
 
-`MultilingualASRRouter` (Bridge/) vælger mellem `CanaryASRBridge` (dansk + 25 EU-sprog) og `AppleSpeechBridge` (tamilsk + nogle Apple-sprog) baseret på `effectiveLanguage` (per-app profil eller global setting).
+`MultilingualASRRouter` (Bridge/) vælger mellem `CanaryASRBridge` (dansk + 25 EU-sprog), `HviskeASRBridge` (dansk premium — stub indtil hviske-coreml er færdigt) og `AppleSpeechBridge` (tamilsk + andre) baseret på `effectiveLanguage` plus `preferredDanishEngine`. Routing-prioritet: dansk + Hviske valgt + Hviske ready → Hviske; ellers Canary hvis supporteret; ellers Apple Speech. Hviske-bridgen er en stub der altid kaster `notReady` indtil søsterprojektet `~/projekter/aktive/hviske-coreml/` er gennem F1-F8 (se dets HANDOFF.md). Saga's UI har allerede picker i Settings → Voice → "Dansk ASR-engine".
 
 Hvis brugeren holdt **Shift+hotkey**, snapshot'er controlleren markeret tekst FØR recording (via `SelectionReader` — AX-API + clipboard-fallback for Electron-apps), husker target-PID, og kører `EditMode.run()` direkte i stedet for mode-routing. Target-app re-aktiveres FØR paste så fokus er korrekt selv hvis brugeren klikkede væk mens LLM tænkte.
 
@@ -87,7 +87,7 @@ Built-in modes er hardcoded array i `Mode.builtins` (Modes/ModeRouter.swift). Cu
 |---|---|
 | `App/` | `SagaController` — top-level orkestrator |
 | `Audio/` | `AudioCapture` (AVAudioRecorder), `VADDetector` (auto-stop ved stilhed), `LivePartialTranscriber` (SFSpeech parallel-transcribe under hold) |
-| `Bridge/` | `CanaryASRBridge`, `AppleSpeechBridge`, `MultilingualASRRouter`, `LMStudioBridge` (OpenAI-kompatibel HTTP-klient med discovery) |
+| `Bridge/` | `CanaryASRBridge`, `HviskeASRBridge` (stub), `AppleSpeechBridge`, `MultilingualASRRouter` (vælger engine + sprog), `LMStudioBridge` (OpenAI-kompatibel HTTP-klient med discovery) |
 | `Calendar/`, `Reminders/` | EventKit-baseret intent-håndtering (ingen LLM påkrævet) |
 | `Companion/` | Wake-word-aktiveret samtale-mode med `SentenceFlusher` (chunker partial transcripts ved sætnings-grænser for streaming TTS) |
 | `Cursor/` | `CursorInjector` — Cmd+V paste vs. CGEvent unicode-typing baseret på frontmost-app (Electron-detection) |
