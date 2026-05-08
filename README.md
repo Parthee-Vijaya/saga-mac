@@ -10,19 +10,35 @@ Du holder ⌥ Højre Option, taler dansk, og slipper. Teksten lander præcist hv
 
 **Live tekst i HUD** — Mens du taler ser du transkriptionen rulle live i et kompakt frosted-glass HUD nederst på skærmen. Du behøver ikke gætte hvad der bliver fanget.
 
-**Wake-word + samtale-mode** — Sig *"Hej Saga"* eller *"Hej Jarvis"* og du er i en flydende dialog. Saga svarer i tale (Apple TTS eller ElevenLabs), viser captions, og slutter når du siger *"tak"* eller *"farvel"*.
+**Wake-word + samtale-mode** — Sig *"Hej Saga"* eller *"Hej Jarvis"* og du er i en flydende dialog. Saga svarer i tale (Apple TTS eller ElevenLabs), viser captions med typewriter-effekt, og slutter når du siger *"tak"* eller *"farvel"*.
 
 **Voice-edit** — Markér tekst i hvilken som helst app, hold ⇧+⌥, og dikter en instruktion: *"gør det mere formelt"*, *"skriv det som en email"*, *"fix typos"*. Markeringen overskrives med det redigerede svar. Virker også i Electron-apps som Claude og Slack via clipboard-fallback.
 
 **Inline AI-kommandoer** — Sig fx *"...skriv det som en formel email"* mens du dikterer, så omformulerer Saga indholdet inline.
 
-**Modes** — Trigger-baserede transformationer: *oversæt til engelsk*, *opsummer*, *formatér*, *vibecode*, *linkedin*, *vision* (analysér skærm), *reminder* (opret notifikation).
+**Modes** — Trigger-baserede transformationer: *oversæt til engelsk*, *opsummer*, *formatér*, *vibecode*, *linkedin*, *vision* (analysér skærm).
 
-**Custom modes + per-app profiler** — Lav dine egne modes med trigger-fraser og system-prompts. Bind specifikke modes til specifikke apps: altid format-mode i Notes, altid stenograf i Mail, altid tamilsk i WhatsApp.
+**Apple-økosystem** — Sig *"mind mig om at ringe til mor i morgen kl 14"* → ny reminder i Apple Reminders synket til iPhone + Watch via iCloud. Sig *"book møde med Lars i morgen kl 14 til 15 om Q3"* → ny event i Apple Kalender. Begge via EventKit, ingen cloud, ingen tredjepart.
+
+**Robust intent-detection** — Hvis Canary mishører trigger-fraser ("mind mig om" → "Det regnede" på dansk er almindeligt), klassificerer en lokal LLM intentionen baseret på tids- og handlings-keywords i transcripten — så reminders + kalender-aftaler havner det rigtige sted selv ved upræcis ASR.
+
+**Custom modes med multi-shot examples** — Lav dine egne modes med trigger-fraser, system-prompts og **few-shot examples** (input/output-par der gives LLM som eksempler). Markant bedre konsistens for tricky modes som "konverter til formel email" eller "lav til bullet-points". Plus **live-test**: validér promptet mod LM Studio mens du tweaker uden at lukke editoren.
+
+**Per-app profiler med hurtig-opsætning** — Bind specifikke modes til specifikke apps: altid format-mode i Notes, altid stenograf i Slack/Claude, altid tamilsk i WhatsApp. **14 pre-defined apps** (Mail, Outlook, Notes, Pages, Word, Slack, Discord, Beskeder, WhatsApp, Xcode, VS Code, Cursor, Claude, LinkedIn) klar til ét-klik-aktivering.
+
+**Voice snippets** — Trigger → tekstblok-erstatninger. Sig *"hilsen"* → "Med venlig hilsen, [dit navn]\n[din email]" indsættes som multi-line-blok. Editor i Settings. **Valgfri iCloud Drive-sync** så snippet-bibliotek er det samme på work-Mac og home-Mac.
+
+**Daily voice-journal** — Saga akkumulerer alle dictations i markdown-fil per dag i `~/Saga-journal/YYYY-MM-DD.md` med timestamps. Refleksiv journaling uden at skifte værktøj.
+
+**Privacy-mode** — Toggle der suspenderer al history-logging midlertidigt. Aktiv: shield-ikon i menubar, ingen entries i history, ingen stats-opdatering, ingen journal-skrivning. Slukker ved app-genstart.
+
+**Smart Electron-app-injection** — Saga detekterer Claude, Slack, VS Code, Discord, Notion m.fl. og bruger paste-strategi fra start (clipboard+⌘V) i stedet for unicode-keyboard. Fjerner ~80ms latens i Electron-apps.
 
 **Vocabulary + filler-strip** — Egen ordbog der retter ASR-fejl på dine egennavne og akronymer. Strip "øh", "altså", "ligesom" automatisk så dictation er ren ud-af-boksen.
 
 **Document-analyse** — Træk en PDF/DOCX ind, og Saga finder bindings-perioder, fortrydelsesfrister og kritiske passager via LLM.
+
+**Historik med fuld-tekst-søgning + filtre** — 100 seneste dictations gemt lokalt. Søg fri tekst, filtrér på dato (i dag/7 dage/30 dage) eller mode. Kopiér rå-transkript eller resultat med ét klik.
 
 **Stenograf-mode** — Ren dictation uden LLM-routing — minimal latens når du bare vil have rå tekst.
 
@@ -48,14 +64,25 @@ Saga er for personer der gerne vil have produktivt voice-input på dansk, men ik
 
 ---
 
-> **Status v0.8.0** — Statistik + HUD-polish: ny TranscriptionStats med ord/
-> tegn/lyd-tid/RTF i Settings → Om, live engine-badge ("🔒 Canary") + mic-
-> badge ("🎤 AirPods Pro") i HUD'et, 6 designforbedringer (symmetrisk
-> waveform fra center-linje, idle breathing, audio-reactive accent-kant,
-> word-by-word highlight med accent-glow på nye ord, gradient fade i
-> partial-text scroll, stats-toast efter transcribe). Plus Wispr-Flow-
-> features fra v0.8.0. Se [docs/ROADMAP.md](docs/ROADMAP.md) for fuld
-> faseliste.
+> **Status — v0.9.0 ship'et, v0.10.0 + v0.11.0 features merged til main**
+>
+> **v0.9.0 (Sprint 1 — quick wins):** Voice snippets, privacy-mode (no
+> history), Daily voice-journal, smart Electron-detection, multi-monitor
+> HUD-positionering.
+>
+> **v0.10.0 (Sprint 2 — Apple-økosystem, ikke tagget endnu):** Apple
+> Reminders + Apple Calendar via EventKit (synker til iPhone+Watch),
+> LLM intent-classifier som fallback når Canary mishør triggers,
+> eksplicit "Puttet reminder/kalender"-confirmation, default-model
+> skiftet til gpt-oss-20b (hurtigere reasoning), 14 pre-defined
+> app-profile-presets, snippet iCloud Drive-sync.
+>
+> **v0.11.0 (Sprint 3 — AI/UX polish, ikke tagget endnu):** Custom mode
+> live-test (test prompts mens du tweaker), Companion typewriter-effekt
+> (seneste 20 chars i accent-farve), multi-shot prompt-templates med
+> few-shot examples, history dato + mode-filter.
+>
+> Se [docs/ROADMAP.md](docs/ROADMAP.md) for fuld faseliste.
 
 ## Hvad virker lige nu (verificeret)
 
@@ -75,15 +102,34 @@ Saga er for personer der gerne vil have produktivt voice-input på dansk, men ik
 - ✅ Genaktiverer original app før paste — kan tjekke LM Studio under tænkning uden at miste fokus
 
 **Modes (kræver LM Studio):**
-- ✅ Oversæt / Format / Opsummer / Vibecode / LinkedIn / Reminder / Vision
+- ✅ Oversæt / Format / Opsummer / Vibecode / LinkedIn / Vision
 - ✅ Document-analyse — drop PDF/DOCX i HUD'et → flag binding-perioder, fortrydelses-frister
 - ✅ Custom modes editor i Settings (egne triggers + system-prompts + temperatur)
-- ✅ Per-app profiler — fx forced "format"-mode i Notes, stenograf i Mail
+- ✅ **Multi-shot examples** i custom modes — input/output-par for bedre konsistens
+- ✅ **Live-test** i editor — kør test mod LM Studio mens du tweaker prompten
+- ✅ Per-app profiler med **14 pre-defined presets** (Mail, Slack, Xcode, …)
 - ✅ Model-picker — skift hurtigt mellem alle modeller fundet i LM Studio
+- ✅ **LLM intent-classifier** — fallback når Canary mishør triggers (Canary's "Det regnede" → reminder routes korrekt)
+- ✅ Default-model `openai/gpt-oss-20b` (hurtigere reasoning end gemma-4-26b)
+
+**Apple-økosystem-integration (EventKit):**
+- ✅ **Apple Reminders** — sig "mind mig om at ringe til mor i morgen kl 14" → reminder synket til iPhone + Watch via iCloud
+- ✅ **Apple Kalender** — sig "book møde med Lars i morgen kl 14 til 15 om Q3" → ny event i kalenderen
+- ✅ Permission-flow med graceful fallback til lokal notification hvis EventKit denied
+- ✅ Default-list/-calendar picker i Settings → Reminders & Kalender
+- ✅ Eksplicit confirmation: "✓ Puttet reminder i Apple Reminders: …"
+
+**Snippets, journal, privacy (Sprint 1):**
+- ✅ **Voice snippets** — trigger → multi-line tekstblok (fx "hilsen" → email-signatur)
+- ✅ Snippet **iCloud Drive-sync** — same library på tværs af Macs
+- ✅ **Daily voice-journal** — alle dictations samlet i markdown per dag (~/Saga-journal/)
+- ✅ **Privacy-mode** — shield-ikon, ingen history/stats/journal logging når aktiv
+- ✅ Smart **Electron-app-detection** — paste-from-start i Claude/Slack/VS Code/Notion m.fl.
 
 **Wake-word + Companion:**
 - ✅ "Saga" eller "Jarvis" som wake-word (on-device SFSpeechRecognizer)
 - ✅ Companion-conversation: efter wake-word → flydende dialog med live caption-overlay
+- ✅ **Typewriter-effekt** på captions — seneste 20 chars vises i accent-farve mens resten er primary
 - ✅ TTS svar via Apple AVSpeechSynthesizer eller ElevenLabs (valgfrit)
 - ✅ Auto-end ved "tak" / "farvel" / "stop"
 - ✅ Cursor-bubble — lille pulserende prik under cursor mens Saga lytter
@@ -91,6 +137,8 @@ Saga er for personer der gerne vil have produktivt voice-input på dansk, men ik
 **System:**
 - ✅ Status-bar app med live health-status, transkriberings-historik og søgning
 - ✅ Persistent transkript-historik (`~/Library/Application Support/Saga/history.json`, max 100 entries)
+- ✅ **Historik-vindue med fuld-tekst-søgning + filtre** — dato (i dag/7/30 dage) + mode-picker
+- ✅ Multi-monitor-aware HUD — vises på den skærm hvor cursor er
 - ✅ Stabil Apple Development signing — TCC-permissions overlever rebuilds
 - ✅ Slim-DMG — Canary-modeller downloades ved første start (sparer plads i DMG)
 - ✅ First-run wizard — onboarding med permission-flow
@@ -114,6 +162,11 @@ Saga er for personer der gerne vil have produktivt voice-input på dansk, men ik
 | **Sprint B** | Vocabulary post-processor, VAD auto-stop, voice-edit | ✅ done |
 | **Voice-edit v2** | Shift+⌥ trigger, clipboard-fallback for Electron-apps, target-app re-aktivering, model-picker | ✅ done |
 | **Design-redesign** | Superwhisper-inspireret dark-first UI, kompakt HUD med hvid waveform + rød REC, keyboard-pills, single-step guided wizard, ny app-icon (omvendt trekant) | ✅ done |
+| **v0.8.0** | Stats-tab (ord/tegn/lyd-tid/RTF), HUD-polish v2 (audio-reactive accent, idle breathing, word-by-word highlight, gradient fade), Odin-mode (RAG-vidensbase) | ✅ done |
+| **Sprint 1 (v0.9.0)** | Voice snippets, privacy-mode, daily voice-journal, Electron-app-detection, multi-monitor HUD | ✅ done |
+| **Sprint 2 (v0.10.0)** | Apple Reminders + Calendar via EventKit, intent-classifier (LLM-fallback), 14 app-presets, snippet iCloud-sync, eksplicit confirmation | ✅ done (ikke tagget) |
+| **Sprint 3 (v0.11.0)** | Custom mode live-test, multi-shot prompt-templates (few-shot examples), Companion typewriter-effekt, history dato/mode-filter | ✅ done (ikke tagget) |
+| **M7** | Webhook-integrations (n8n/Sheets) | ⏸ skipped per ønske |
 | **Sideprojekt** | hviske-coreml — Hviske → CoreML for bedre dansk-WER | ⚪ ~10 dage |
 
 ## Arkitektur
@@ -121,9 +174,11 @@ Saga er for personer der gerne vil have produktivt voice-input på dansk, men ik
 ```
 Saga.app (Swift 6, SwiftUI status bar)
   ├─ AVAudioRecorder ────→ 16 kHz mono WAV          ┐
-  ├─ CanaryKit (CoreML) ─→ ANE-accelereret ASR      ├─ Påkrævet (lokalt)
-  ├─ CursorInjector ────→ CGEvent unicode typing    ┘
-  └─ LM Studio (HTTP) ──→ valgfri mode-LLM           ─ Valgfri (kun til M2-modes)
+  ├─ CanaryKit (CoreML) ─→ ANE-accelereret ASR      │
+  ├─ CursorInjector ────→ CGEvent unicode typing    ├─ Påkrævet (lokalt)
+  ├─ EventKit ──────────→ Apple Reminders/Kalender  │
+  ├─ iCloud Drive (fil) ─→ snippet-sync valgfrit    ┘
+  └─ LM Studio (HTTP) ──→ valgfri mode-LLM           ─ Valgfri (kun til modes)
 ```
 
 ASR kører fuldt **on-device** — ingen audio forlader maskinen, ingen netværksforbindelse
