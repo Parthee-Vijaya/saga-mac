@@ -26,6 +26,8 @@ public struct StatusView: View {
             Divider()
             statusSection
             Divider()
+            togglesSection
+            Divider()
             recentSection
             Divider()
             footer
@@ -48,10 +50,7 @@ public struct StatusView: View {
                     Text("Saga")
                         .font(SagaTypography.bodyEmphasis)
                         .foregroundColor(SagaColors.textPrimary)
-                    Text(Self.versionLabel)
-                        .font(SagaTypography.caption)
-                        .foregroundColor(SagaColors.textTertiary)
-                        .help("Version \(Self.shortVersion) · Build \(Self.buildNumber)")
+                    VersionLink()
                 }
                 Text(stateText)
                     .font(SagaTypography.caption)
@@ -118,6 +117,46 @@ public struct StatusView: View {
                 action: nil
             )
             PermissionInlineRow()
+        }
+        .padding(.horizontal, SagaSpacing.lg)
+        .padding(.vertical, SagaSpacing.sm)
+    }
+
+    // MARK: - Quick toggles
+
+    /// Tre quick-toggles til de hyppigst skiftende modes. Bindes direkte til
+    /// SagaController's @Published properties — ændringer reflekteres øjeblikkeligt
+    /// i Settings-vinduet og persisteres (eller ikke, jf. privacyMode der er
+    /// session-only) gennem deres didSet-handlere på controlleren.
+    private var togglesSection: some View {
+        HStack(spacing: SagaSpacing.xs + 2) {
+            QuickToggle(
+                title: "Privacy",
+                systemImage: "shield.lefthalf.filled",
+                isOn: Binding(
+                    get: { controller.privacyMode },
+                    set: { controller.privacyMode = $0 }
+                ),
+                onColor: SagaColors.warning
+            )
+            QuickToggle(
+                title: "Stenograf",
+                systemImage: "text.cursor",
+                isOn: Binding(
+                    get: { controller.stenografMode },
+                    set: { controller.stenografMode = $0 }
+                ),
+                onColor: SagaColors.accent
+            )
+            QuickToggle(
+                title: "Wake-word",
+                systemImage: "waveform.badge.mic",
+                isOn: Binding(
+                    get: { controller.wakeWordEnabled },
+                    set: { controller.wakeWordEnabled = $0 }
+                ),
+                onColor: SagaColors.accent
+            )
         }
         .padding(.horizontal, SagaSpacing.lg)
         .padding(.vertical, SagaSpacing.sm)
@@ -389,5 +428,108 @@ struct HistoryRowCompact: View {
                 }
             }
         }
+    }
+}
+
+/// Pill-style toggle til menubar-quick-actions. Mirror af SagaController's
+/// @Published booleans (privacyMode, stenografMode, wakeWordEnabled). Bruger
+/// onColor til at signalere mode-identitet (warning for privacy, accent for
+/// resten). Off-state er minimal; on-state er accent-fyldt med subtil glow.
+struct QuickToggle: View {
+    let title: String
+    let systemImage: String
+    @Binding var isOn: Bool
+    let onColor: Color
+
+    @State private var isHovered = false
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: { isOn.toggle() }) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .medium))
+                Text(title)
+                    .font(SagaTypography.caption)
+                    .lineLimit(1)
+            }
+            .foregroundColor(isOn ? onColor : SagaColors.textPrimary)
+            .padding(.horizontal, SagaSpacing.sm + 2)
+            .padding(.vertical, SagaSpacing.xs + 2)
+            .background(
+                RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
+                    .fill(backgroundFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
+                    .stroke(borderColor, lineWidth: isOn ? 1 : 0.5)
+            )
+            .scaleEffect(isPressed ? 0.97 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .pressEvents(
+            onPress: { isPressed = true },
+            onRelease: { isPressed = false }
+        )
+        .animation(.easeInOut(duration: 0.15), value: isOn)
+        .animation(.easeInOut(duration: 0.10), value: isHovered)
+        .animation(.easeInOut(duration: 0.08), value: isPressed)
+    }
+
+    private var backgroundFill: Color {
+        if isOn {
+            return onColor.opacity(isHovered ? 0.22 : 0.15)
+        }
+        if isPressed { return SagaColors.surfaceElevated }
+        if isHovered { return SagaColors.surface }
+        return Color.clear
+    }
+
+    private var borderColor: Color {
+        if isOn { return onColor.opacity(0.45) }
+        if isHovered { return SagaColors.borderStrong }
+        return SagaColors.border
+    }
+}
+
+/// Klikbar version-label i menubar-headeren. Åbner GitHub releases-siden
+/// så brugeren kan læse changelog. Vi går til /releases (oversigt) frem for
+/// /releases/tag/vX.Y.Z fordi seneste version ikke nødvendigvis er tagget
+/// endnu under aktiv udvikling.
+struct VersionLink: View {
+    @State private var isHovered = false
+
+    private static let releasesURL = URL(string: "https://github.com/Parthee-Vijaya/saga-mac/releases")!
+
+    var body: some View {
+        Button(action: openReleases) {
+            Text(StatusView.versionLabel)
+                .font(SagaTypography.caption)
+                .foregroundColor(isHovered ? SagaColors.accent : SagaColors.textTertiary)
+                .underline(isHovered, color: SagaColors.accent)
+        }
+        .buttonStyle(.plain)
+        .help("Version \(StatusView.shortVersion) · Build \(StatusView.buildNumber) — klik for release notes")
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+    }
+
+    private func openReleases() {
+        NSWorkspace.shared.open(Self.releasesURL)
     }
 }
