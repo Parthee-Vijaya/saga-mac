@@ -14,6 +14,13 @@ public struct CustomModeEditor: View {
     @State private var systemPrompt: String
     @State private var temperature: Double
 
+    // MARK: - Live test-state
+    @State private var testInput: String = ""
+    @State private var testOutput: String = ""
+    @State private var isTestRunning: Bool = false
+    @State private var testError: String?
+    @State private var testElapsedMs: Int = 0
+
     public init(existing: Mode? = nil) {
         self.existing = existing
         _title = State(initialValue: existing?.title ?? "")
@@ -33,7 +40,7 @@ public struct CustomModeEditor: View {
             Divider()
             footer
         }
-        .frame(width: 580, height: 600)
+        .frame(width: 580, height: 720)
     }
 
     private var header: some View {
@@ -93,6 +100,140 @@ public struct CustomModeEditor: View {
                 Text("Lav (0-0.3) = forudsigelig, høj (0.7-1) = kreativ.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+
+            // MARK: - Live test-sektion
+            Divider().padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "play.circle")
+                        .foregroundColor(.accentColor)
+                    Text("Test mode").font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    if testElapsedMs > 0 && !isTestRunning {
+                        Text("\(testElapsedMs)ms")
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Text("Indtast test-input og kør mod LM Studio mens du tweaker prompten.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                TextEditor(text: $testInput)
+                    .font(.body)
+                    .frame(minHeight: 60, maxHeight: 80)
+                    .padding(6)
+                    .background(Color.gray.opacity(0.06))
+                    .cornerRadius(6)
+                    .overlay(alignment: .topLeading) {
+                        if testInput.isEmpty {
+                            Text("Skriv test-input her...")
+                                .font(.body)
+                                .foregroundColor(.secondary.opacity(0.5))
+                                .padding(12)
+                                .allowsHitTesting(false)
+                        }
+                    }
+
+                HStack {
+                    Button {
+                        runTest()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isTestRunning {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                                    .frame(width: 14, height: 14)
+                            } else {
+                                Image(systemName: "play.fill")
+                            }
+                            Text(isTestRunning ? "Kører…" : "Kør test")
+                        }
+                    }
+                    .disabled(isTestRunning || testInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                              || systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if !testOutput.isEmpty || testError != nil {
+                        Button("Ryd") {
+                            testOutput = ""
+                            testError = nil
+                            testElapsedMs = 0
+                        }
+                        .controlSize(.small)
+                    }
+                    Spacer()
+                }
+
+                // Output / fejl-area
+                if let err = testError {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                            .textSelection(.enabled)
+                    }
+                    .padding(8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(6)
+                } else if !testOutput.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Output")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        ScrollView {
+                            Text(testOutput)
+                                .font(.body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                                .padding(8)
+                        }
+                        .frame(minHeight: 60, maxHeight: 200)
+                        .background(Color.accentColor.opacity(0.06))
+                        .cornerRadius(6)
+                    }
+                }
+            }
+        }
+    }
+
+    private func runTest() {
+        let input = testInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty, !prompt.isEmpty else { return }
+
+        isTestRunning = true
+        testOutput = ""
+        testError = nil
+        testElapsedMs = 0
+
+        let temp = self.temperature
+        let lmStudio = controller.lmStudio
+
+        Task {
+            let start = Date()
+            do {
+                let result = try await lmStudio.chat(
+                    system: prompt,
+                    user: input,
+                    temperature: temp,
+                    maxTokens: 4000
+                )
+                await MainActor.run {
+                    self.testOutput = result.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.testElapsedMs = Int(Date().timeIntervalSince(start) * 1000)
+                    self.isTestRunning = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.testError = error.localizedDescription
+                    self.testElapsedMs = Int(Date().timeIntervalSince(start) * 1000)
+                    self.isTestRunning = false
+                }
             }
         }
     }
