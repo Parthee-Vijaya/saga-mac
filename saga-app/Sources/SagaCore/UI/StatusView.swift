@@ -20,21 +20,69 @@ public struct StatusView: View {
     }()
     static let versionLabel: String = "v\(shortVersion) (\(buildNumber))"
 
+    /// Disclosure-state for kollapsbare sektioner. Default: status er åbent
+    /// (brugeren vil typisk se health-rows ved åbning), recent er kollapset
+    /// (kun brug for det på request).
+    @State private var showSystemDetails: Bool = true
+    @State private var showRecent: Bool = false
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
-            statusSection
-            Divider()
-            togglesSection
-            Divider()
-            recentSection
-            Divider()
-            footer
+        ZStack {
+            // Glass-base — matcher RecordingHUD + CompanionOverlay vokabular.
+            // .ultraThinMaterial er underlagt, surfaceElevated giver tint så
+            // tekst kan læses oven på en hvilken som helst skrivebords-baggrund.
+            RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+                        .fill(SagaColors.surfaceElevated.opacity(0.85))
+                )
+                .overlay(
+                    AudioReactiveBorder(audio: controller.audio, state: controller.state)
+                )
+                .overlay(
+                    // Subtil accent-gradient i toppen — "lys ovenfra"-effekt
+                    // der får panelet til at føles let, ikke trykket.
+                    VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [SagaColors.accent.opacity(0.06), Color.clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 60)
+                        Spacer()
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous))
+                    .allowsHitTesting(false)
+                )
+                .sagaShadow(.subtle)
+
+            // Faktisk content
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                sectionDivider
+                statusDisclosure
+                sectionDivider
+                togglesSection
+                sectionDivider
+                recentDisclosure
+                sectionDivider
+                footer
+            }
+            .padding(.vertical, SagaSpacing.sm)
         }
-        .padding(.vertical, SagaSpacing.sm)
-        .background(SagaColors.background)
+        .padding(SagaSpacing.xs + 2)
         .preferredColorScheme(.dark)
+    }
+
+    /// Inset-divider — træk ikke helt ud til kant, så glass-edges bevarer
+    /// en ren kontur. Bruges i stedet for default .Divider() der spænder
+    /// hele bredden.
+    private var sectionDivider: some View {
+        Rectangle()
+            .fill(SagaColors.border)
+            .frame(height: 0.5)
+            .padding(.horizontal, SagaSpacing.md)
     }
 
     // MARK: - Header
@@ -44,6 +92,8 @@ public struct StatusView: View {
             Image(systemName: stateIcon)
                 .font(.system(size: 22))
                 .foregroundStyle(stateColor)
+                .symbolEffect(.pulse, isActive: controller.state == .recording)
+                .symbolEffect(.variableColor.iterative, isActive: controller.state == .transcribing || controller.state == .routing)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: SagaSpacing.xs) {
@@ -122,15 +172,14 @@ public struct StatusView: View {
         .padding(.vertical, SagaSpacing.sm)
     }
 
-    // MARK: - Quick toggles
+    // MARK: - Quick toggles (Command Surface tiles)
 
-    /// Tre quick-toggles til de hyppigst skiftende modes. Bindes direkte til
-    /// SagaController's @Published properties — ændringer reflekteres øjeblikkeligt
-    /// i Settings-vinduet og persisteres (eller ikke, jf. privacyMode der er
-    /// session-only) gennem deres didSet-handlere på controlleren.
+    /// Tre tile-toggles til de hyppigst skiftende modes. Tile-format frem for
+    /// pill — større klikflade, tydeligere on/off-state, matcher Command Surface-stil.
+    /// Bindes direkte til SagaController's @Published properties.
     private var togglesSection: some View {
         HStack(spacing: SagaSpacing.xs + 2) {
-            QuickToggle(
+            ControlTile(
                 title: "Privacy",
                 systemImage: "shield.lefthalf.filled",
                 isOn: Binding(
@@ -139,7 +188,7 @@ public struct StatusView: View {
                 ),
                 onColor: SagaColors.warning
             )
-            QuickToggle(
+            ControlTile(
                 title: "Stenograf",
                 systemImage: "text.cursor",
                 isOn: Binding(
@@ -148,7 +197,7 @@ public struct StatusView: View {
                 ),
                 onColor: SagaColors.accent
             )
-            QuickToggle(
+            ControlTile(
                 title: "Wake-word",
                 systemImage: "waveform.badge.mic",
                 isOn: Binding(
@@ -158,8 +207,43 @@ public struct StatusView: View {
                 onColor: SagaColors.accent
             )
         }
-        .padding(.horizontal, SagaSpacing.lg)
+        .padding(.horizontal, SagaSpacing.md)
         .padding(.vertical, SagaSpacing.sm)
+    }
+
+    // MARK: - Disclosure-wrappers
+
+    /// Status-disclosure: åbnet by default fordi det er primær info brugeren
+    /// kommer for. Klik på header for at kollapse/expand.
+    private var statusDisclosure: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureRowHeader(
+                title: "System",
+                isExpanded: showSystemDetails,
+                onToggle: { withAnimation(.easeInOut(duration: 0.18)) { showSystemDetails.toggle() } }
+            )
+            if showSystemDetails {
+                statusSection
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    /// Recent-disclosure: lukket by default — recent transcripts er sekundær info
+    /// (5×44pt fyldte før dropdown'en), kan stadig åbnes med ét klik.
+    private var recentDisclosure: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureRowHeader(
+                title: "Seneste",
+                badge: controller.history.entries.isEmpty ? nil : "\(controller.history.entries.count)",
+                isExpanded: showRecent,
+                onToggle: { withAnimation(.easeInOut(duration: 0.18)) { showRecent.toggle() } }
+            )
+            if showRecent {
+                recentSection
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 
     // MARK: - Recent
@@ -431,11 +515,41 @@ struct HistoryRowCompact: View {
     }
 }
 
-/// Pill-style toggle til menubar-quick-actions. Mirror af SagaController's
-/// @Published booleans (privacyMode, stenografMode, wakeWordEnabled). Bruger
-/// onColor til at signalere mode-identitet (warning for privacy, accent for
-/// resten). Off-state er minimal; on-state er accent-fyldt med subtil glow.
-struct QuickToggle: View {
+/// Audio-reactive accent-border til glass-base. Observer audio.levelHistory
+/// direkte (@ObservedObject) så SwiftUI re-evaluerer når levels opdaterer.
+/// Idle: konstant 0.18 (subtil ring). Recording: 0.35→0.90 audio-reactive.
+/// Transcribing/routing: 0.45 fast working-tilstand.
+struct AudioReactiveBorder: View {
+    @ObservedObject var audio: AudioCapture
+    let state: SagaState
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+            .strokeBorder(SagaColors.accent.opacity(opacity), lineWidth: 1)
+            .animation(.easeOut(duration: 0.22), value: opacity)
+    }
+
+    private var opacity: Double {
+        switch state {
+        case .idle:
+            return 0.18
+        case .recording:
+            let recent = audio.levelHistory.suffix(5)
+            guard !recent.isEmpty else { return 0.35 }
+            let avg = recent.reduce(0, +) / Float(recent.count)
+            let normalized = min(1.0, Double(avg) * 2.0)
+            return 0.35 + normalized * 0.55
+        case .transcribing, .routing:
+            return 0.45
+        }
+    }
+}
+
+/// Tile-style toggle — Command Surface-tile fra menubar-redesign-plan'en.
+/// Større klikflade end pill, tydeligere on/off, accent-glow når aktiv.
+/// Layout: label uppercase top, ikon stort i midten, state-tekst bund.
+/// Bindes til SagaController's @Published booleans.
+struct ControlTile: View {
     let title: String
     let systemImage: String
     @Binding var isOn: Bool
@@ -446,25 +560,33 @@ struct QuickToggle: View {
 
     var body: some View {
         Button(action: { isOn.toggle() }) {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .medium))
-                Text(title)
-                    .font(SagaTypography.caption)
+            VStack(spacing: 4) {
+                Text(title.uppercased())
+                    .font(SagaTypography.label)
+                    .tracking(0.5)
+                    .foregroundColor(isOn ? onColor : SagaColors.textTertiary)
                     .lineLimit(1)
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(isOn ? onColor : SagaColors.textPrimary)
+                    .symbolEffect(.bounce, value: isOn)
+                Text(isOn ? "ON" : "OFF")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundColor(isOn ? onColor.opacity(0.9) : SagaColors.textTertiary)
             }
-            .foregroundColor(isOn ? onColor : SagaColors.textPrimary)
-            .padding(.horizontal, SagaSpacing.sm + 2)
-            .padding(.vertical, SagaSpacing.xs + 2)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, SagaSpacing.sm + 2)
             .background(
-                RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
+                RoundedRectangle(cornerRadius: SagaRadii.medium, style: .continuous)
                     .fill(backgroundFill)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
-                    .stroke(borderColor, lineWidth: isOn ? 1 : 0.5)
+                RoundedRectangle(cornerRadius: SagaRadii.medium, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: isOn ? 1 : 0.5)
             )
-            .scaleEffect(isPressed ? 0.97 : 1.0)
+            .shadow(color: isOn ? onColor.opacity(0.20) : .clear, radius: 8, x: 0, y: 0)
+            .scaleEffect(isPressed ? 0.96 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -479,24 +601,75 @@ struct QuickToggle: View {
             onPress: { isPressed = true },
             onRelease: { isPressed = false }
         )
-        .animation(.easeInOut(duration: 0.15), value: isOn)
-        .animation(.easeInOut(duration: 0.10), value: isHovered)
+        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isOn)
+        .animation(.easeInOut(duration: 0.12), value: isHovered)
         .animation(.easeInOut(duration: 0.08), value: isPressed)
     }
 
     private var backgroundFill: Color {
         if isOn {
-            return onColor.opacity(isHovered ? 0.22 : 0.15)
+            return onColor.opacity(isHovered ? 0.20 : 0.14)
         }
         if isPressed { return SagaColors.surfaceElevated }
         if isHovered { return SagaColors.surface }
-        return Color.clear
+        return Color.white.opacity(0.02)
     }
 
     private var borderColor: Color {
-        if isOn { return onColor.opacity(0.45) }
+        if isOn { return onColor.opacity(0.50) }
         if isHovered { return SagaColors.borderStrong }
         return SagaColors.border
+    }
+}
+
+/// Disclosure-header til kollapsbare sektioner. Klikbar HStack med chevron
+/// der roterer 90° når åbent. Optional badge til at vise et antal.
+struct DisclosureRowHeader: View {
+    let title: String
+    var badge: String? = nil
+    let isExpanded: Bool
+    let onToggle: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: SagaSpacing.xs + 2) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(SagaColors.textTertiary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.4)
+                    .foregroundColor(isHovered ? SagaColors.textPrimary : SagaColors.textSecondary)
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1.5)
+                        .background(
+                            Capsule().fill(SagaColors.accent.opacity(0.18))
+                        )
+                        .foregroundColor(SagaColors.accent)
+                }
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.horizontal, SagaSpacing.lg)
+            .padding(.vertical, SagaSpacing.xs + 2)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: isExpanded)
+        .animation(.easeInOut(duration: 0.10), value: isHovered)
     }
 }
 
