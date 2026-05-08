@@ -11,6 +11,15 @@ public struct StatusView: View {
 
     public init() {}
 
+    // Læses én gang ved første brug — Info.plist-værdier ændrer sig ikke i runtime.
+    static let shortVersion: String = {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }()
+    static let buildNumber: String = {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+    }()
+    static let versionLabel: String = "v\(shortVersion) (\(buildNumber))"
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -35,9 +44,15 @@ public struct StatusView: View {
                 .foregroundStyle(stateColor)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Saga")
-                    .font(SagaTypography.bodyEmphasis)
-                    .foregroundColor(SagaColors.textPrimary)
+                HStack(alignment: .firstTextBaseline, spacing: SagaSpacing.xs) {
+                    Text("Saga")
+                        .font(SagaTypography.bodyEmphasis)
+                        .foregroundColor(SagaColors.textPrimary)
+                    Text(Self.versionLabel)
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textTertiary)
+                        .help("Version \(Self.shortVersion) · Build \(Self.buildNumber)")
+                }
                 Text(stateText)
                     .font(SagaTypography.caption)
                     .foregroundColor(SagaColors.textSecondary)

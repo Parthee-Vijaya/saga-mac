@@ -145,11 +145,21 @@ public final class CanaryASRBridge: @unchecked Sendable {
             return devCandidate
         }
 
-        // 5. Hardcoded dev-fallback til Parthee's setup
-        let homeFallback = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Desktop/Claude/projekter/canary-coreml/models/mlpackage")
-        if FileManager.default.fileExists(atPath: homeFallback.appendingPathComponent("CanaryEncoder.mlpackage").path) {
-            return homeFallback
+        // 5. Hardcoded dev-fallback til Parthee's setup. Prøver flere placeringer
+        // fordi projekt-mapperne er splittet i aktive/ og arkiv/ — gamle paths
+        // uden disse kan stadig findes hvis nogen kører en pre-flyttet checkout.
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let homeCandidates = [
+            "Desktop/Claude/projekter/aktive/canary-coreml/models/mlpackage",
+            "Desktop/Claude/projekter/arkiv/canary-coreml/models/mlpackage",
+            "Desktop/Claude/projekter/canary-coreml/models/mlpackage",
+            "projekter/canary-coreml/models/mlpackage",
+        ]
+        for candidate in homeCandidates {
+            let url = home.appendingPathComponent(candidate)
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("CanaryEncoder.mlpackage").path) {
+                return url
+            }
         }
 
         throw ASRBridgeError.modelsNotFound
