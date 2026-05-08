@@ -1,3 +1,4 @@
+import CoreML
 import Foundation
 import OSLog
 import WhisperKit
@@ -41,20 +42,32 @@ public final class HviskeASRBridge: @unchecked Sendable {
 
         queue.sync { _state = .loading }
 
-        let modelsDir: URL
+        let sourceDir: URL
         do {
-            modelsDir = try locateModelsDirectory()
+            sourceDir = try locateModelsDirectory()
         } catch {
             log.error("Hviske mlpackages mangler: \(error.localizedDescription, privacy: .public)")
             queue.sync { _state = .error("Hviske-modeller ikke fundet — kør hviske-coreml/python/v3_convert.py") }
             return
         }
 
-        log.info("Loader Hviske via WhisperKit fra \(modelsDir.path, privacy: .public)")
+        // WhisperKit kan ikke loade .mlpackage direkte — de skal kompileres
+        // til .mlmodelc først. Vi pre-compiler én gang og cacher i App
+        // Support, så subsequent loads er instant.
+        let compiledDir: URL
+        do {
+            compiledDir = try await compileModelsIfNeeded(sourceDir: sourceDir)
+        } catch {
+            log.error("Hviske compile fejlede: \(error.localizedDescription, privacy: .public)")
+            queue.sync { _state = .error("Kunne ikke kompilere Hviske-modeller: \(error.localizedDescription)") }
+            return
+        }
+
+        log.info("Loader Hviske via WhisperKit fra \(compiledDir.path, privacy: .public)")
         let t0 = Date()
         do {
             let config = WhisperKitConfig(
-                modelFolder: modelsDir.path,
+                modelFolder: compiledDir.path,
                 load: true
             )
             let pipe = try await WhisperKit(config)
@@ -68,6 +81,63 @@ public final class HviskeASRBridge: @unchecked Sendable {
             log.error("WhisperKit init fejlede: \(error.localizedDescription, privacy: .public)")
             queue.sync { _state = .error(error.localizedDescription) }
         }
+    }
+
+    /// Kompiler hver .mlpackage til .mlmodelc og kopier alle nødvendige
+    /// non-model-filer (tokenizer, config) til cache-mappen. Idempotent —
+    /// springer over hvis cache allerede har de compiled-filer.
+    /// Returnerer URL til compiled-mappen som WhisperKit kan loade.
+    private func compileModelsIfNeeded(sourceDir: URL) async throws -> URL {
+        let appSupport = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let cacheDir = appSupport.appendingPathComponent("Saga/HviskeCompiled", isDirectory: true)
+        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+
+        let mlpackageNames = ["MelSpectrogram", "AudioEncoder", "TextDecoder"]
+        for name in mlpackageNames {
+            let source = sourceDir.appendingPathComponent("\(name).mlpackage")
+            let dest = cacheDir.appendingPathComponent("\(name).mlmodelc")
+
+            if FileManager.default.fileExists(atPath: dest.path) {
+                continue  // allerede kompileret
+            }
+            guard FileManager.default.fileExists(atPath: source.path) else {
+                throw HviskeBridgeError.mlpackageMissing(name)
+            }
+
+            log.info("Kompilerer \(name).mlpackage → mlmodelc (kan tage 10-30s første gang)")
+            let t0 = Date()
+            let compiledURL = try await MLModel.compileModel(at: source)
+            // compileModel returnerer en path i temp-mappen — flyt den til cache.
+            // Hvis dest eksisterer (race), slet og prøv igen.
+            try? FileManager.default.removeItem(at: dest)
+            try FileManager.default.moveItem(at: compiledURL, to: dest)
+            let elapsed = Date().timeIntervalSince(t0)
+            log.info("\(name) compiled på \(String(format: "%.1f", elapsed))s")
+        }
+
+        // Kopier WhisperKit's nødvendige sidekar-filer (tokenizer, configs).
+        // Vi rør ikke ved dem hvis de allerede findes — så subsequent boots
+        // er instant.
+        let sidecarFiles = [
+            "tokenizer.json", "config.json", "generation_config.json",
+            "added_tokens.json", "merges.txt", "normalizer.json",
+            "preprocessor_config.json", "tokenizer_config.json", "vocab.json",
+        ]
+        for name in sidecarFiles {
+            let source = sourceDir.appendingPathComponent(name)
+            let dest = cacheDir.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: source.path),
+               !FileManager.default.fileExists(atPath: dest.path) {
+                try? FileManager.default.copyItem(at: source, to: dest)
+            }
+        }
+
+        return cacheDir
     }
 
     /// Transkribér 16 kHz mono PCM Float32. Måler inference-tid for at
@@ -135,5 +205,16 @@ public final class HviskeASRBridge: @unchecked Sendable {
         }
 
         throw ASRBridgeError.modelsNotFound
+    }
+}
+
+public enum HviskeBridgeError: Error, LocalizedError {
+    case mlpackageMissing(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .mlpackageMissing(let name):
+            return "Hviske \(name).mlpackage mangler — kør hviske-coreml/python/v3_convert.py"
+        }
     }
 }
