@@ -21,36 +21,39 @@ public struct StatusView: View {
             Divider()
             footer
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, SagaSpacing.sm)
+        .background(SagaColors.background)
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: SagaSpacing.md) {
             Image(systemName: stateIcon)
                 .font(.system(size: 22))
                 .foregroundStyle(stateColor)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Saga")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(SagaTypography.bodyEmphasis)
+                    .foregroundColor(SagaColors.textPrimary)
                 Text(stateText)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
             }
             Spacer()
             if controller.state == .idle {
                 Image(systemName: "option")
                     .font(.system(size: 9))
-                    .foregroundColor(.secondary.opacity(0.6))
+                    .foregroundColor(SagaColors.textTertiary)
                 Text("Hold ⌥ for at tale")
                     .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(SagaColors.textSecondary)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.horizontal, SagaSpacing.lg)
+        .padding(.vertical, SagaSpacing.xs + 2)  // 6 = xs(4) + 2
     }
 
     private var stateIcon: String {
@@ -64,10 +67,10 @@ public struct StatusView: View {
 
     private var stateColor: Color {
         switch controller.state {
-        case .idle: return controller.health.asr.isHappy ? .green : .orange
-        case .recording: return .red
-        case .transcribing: return .accentColor
-        case .routing: return .purple
+        case .idle: return controller.health.asr.isHappy ? SagaColors.success : SagaColors.warning
+        case .recording: return SagaColors.danger
+        case .transcribing: return SagaColors.accent
+        case .routing: return SagaColors.accent
         }
     }
 
@@ -86,7 +89,7 @@ public struct StatusView: View {
     // MARK: - Status
 
     private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: SagaSpacing.sm) {
             HealthRow(
                 title: "Canary (ASR)",
                 detail: "\(controller.asr.modelLabel) · \(controller.health.asr.label)",
@@ -101,86 +104,138 @@ public struct StatusView: View {
             )
             PermissionInlineRow()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, SagaSpacing.lg)
+        .padding(.vertical, SagaSpacing.sm)
     }
 
     // MARK: - Recent
 
     private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: SagaSpacing.xs + 2) {  // 6 = xs(4) + 2
             HStack {
                 Text("Seneste")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(SagaColors.textSecondary)
                 Spacer()
                 if !controller.history.entries.isEmpty {
                     Button("Se alle…") { openWindow(id: "history") }
                         .buttonStyle(.link)
-                        .font(.system(size: 11))
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.accent)
                 }
             }
 
             if controller.history.entries.isEmpty {
                 Text("Ingen transkriptioner endnu.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 4)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
+                    .padding(.vertical, SagaSpacing.xs)
             } else {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: SagaSpacing.xs) {
                     ForEach(controller.history.entries.prefix(5)) { entry in
                         HistoryRowCompact(entry: entry)
                     }
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, SagaSpacing.lg)
+        .padding(.vertical, SagaSpacing.sm)
     }
 
     // MARK: - Footer
 
     private var footer: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Button {
-                    openSettings()
-                } label: {
-                    Label("Indstillinger…", systemImage: "gearshape")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                Button {
-                    openWindow(id: "documents")
-                } label: {
-                    Label("Document-analyse", systemImage: "doc.text.magnifyingglass")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                Button {
+        HStack(spacing: SagaSpacing.xs + 2) {
+            StatusFooterButton(
+                title: "Indstillinger…",
+                systemImage: "gearshape",
+                action: { openSettings() }
+            )
+            Spacer()
+            StatusFooterButton(
+                title: "Document-analyse",
+                systemImage: "doc.text.magnifyingglass",
+                action: { openWindow(id: "documents") }
+            )
+            Spacer()
+            StatusFooterButton(
+                title: "Afslut",
+                systemImage: "power",
+                action: {
                     Task {
                         await controller.shutdown()
                         NSApp.terminate(nil)
                     }
-                } label: {
-                    Label("Afslut", systemImage: "power")
-                        .font(.system(size: 12))
                 }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
+            )
         }
+        .padding(.horizontal, SagaSpacing.md)
+        .padding(.vertical, SagaSpacing.xs + 2)
     }
 }
 
 // MARK: - Subviews
+
+/// Footer-knap med hover-state og pointing-hand cursor — matcher native macOS.
+struct StatusFooterButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 11))
+                Text(title)
+                    .font(SagaTypography.caption)
+            }
+            .foregroundColor(SagaColors.textPrimary)
+            .padding(.horizontal, SagaSpacing.sm)
+            .padding(.vertical, SagaSpacing.xs + 1)
+            .background(
+                RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
+                    .fill(backgroundFill)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .pressEvents(
+            onPress: { isPressed = true },
+            onRelease: { isPressed = false }
+        )
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .animation(.easeInOut(duration: 0.10), value: isPressed)
+    }
+
+    private var backgroundFill: Color {
+        if isPressed { return SagaColors.surfaceElevated }
+        if isHovered { return SagaColors.accentSubtle }
+        return Color.clear
+    }
+}
+
+/// Hjælper til at tracke press-state. SwiftUI's `Button` har ingen direct press-callback,
+/// så vi bruger DragGesture(minimumDistance: 0) til at fange touch-down/up.
+extension View {
+    func pressEvents(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
+        self.simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in onPress() }
+                .onEnded { _ in onRelease() }
+        )
+    }
+}
 
 struct HealthRow: View {
     let title: String
@@ -189,24 +244,26 @@ struct HealthRow: View {
     let action: (String, () -> Void)?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: SagaSpacing.md) {
             Circle()
-                .fill(ok ? Color.green : Color.orange)
+                .fill(ok ? SagaColors.success : SagaColors.warning)
                 .frame(width: 8, height: 8)
                 .padding(.top, 5)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(SagaColors.textPrimary)
                 Text(detail)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
                     .lineLimit(2)
             }
             Spacer()
             if let action {
                 Button(action.0, action: action.1)
                     .buttonStyle(.borderless)
-                    .font(.system(size: 11))
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.accent)
             }
         }
     }
@@ -221,17 +278,18 @@ struct PermissionInlineRow: View {
     private var allOk: Bool { hasMic && hasAX }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: SagaSpacing.md) {
             Circle()
-                .fill(allOk ? Color.green : Color.orange)
+                .fill(allOk ? SagaColors.success : SagaColors.warning)
                 .frame(width: 8, height: 8)
                 .padding(.top, 5)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Permissions")
                     .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(SagaColors.textPrimary)
                 Text("Mikrofon: \(micLabel)  ·  Accessibility: \(hasAX ? "✓" : "—")")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
             }
             Spacer()
             if !allOk {
@@ -253,7 +311,7 @@ struct PermissionInlineRow: View {
                     }
                 }
                 .menuStyle(.borderlessButton)
-                .font(.system(size: 11))
+                .font(SagaTypography.caption)
                 .fixedSize()
             }
         }
@@ -285,29 +343,34 @@ struct HistoryRowCompact: View {
     let entry: TranscriptEntry
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: SagaSpacing.sm) {
             Image(systemName: entry.wasModeApplied ? "sparkles" : "text.cursor")
                 .font(.system(size: 10))
-                .foregroundColor(entry.wasModeApplied ? .purple : .accentColor)
+                .foregroundColor(entry.wasModeApplied ? SagaColors.accent : SagaColors.textSecondary)
                 .frame(width: 14)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.processedText)
                     .font(.system(size: 12))
+                    .foregroundColor(SagaColors.textPrimary)
                     .lineLimit(1)
-                HStack(spacing: 6) {
+                HStack(spacing: SagaSpacing.xs + 2) {
                     Text(entry.timestamp, style: .time)
                         .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(SagaColors.textTertiary)
                     if let mode = entry.modeId {
-                        Text("·").foregroundColor(.secondary).font(.system(size: 9))
+                        Text("·")
+                            .foregroundColor(SagaColors.textTertiary)
+                            .font(.system(size: 9))
                         Text(mode)
                             .font(.system(size: 9, design: .monospaced))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(SagaColors.textTertiary)
                     }
-                    Text("·").foregroundColor(.secondary).font(.system(size: 9))
+                    Text("·")
+                        .foregroundColor(SagaColors.textTertiary)
+                        .font(.system(size: 9))
                     Text(String(format: "%.2fs", Double(entry.durationMs) / 1000.0))
                         .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(SagaColors.textTertiary)
                 }
             }
         }
