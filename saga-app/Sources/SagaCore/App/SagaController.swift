@@ -189,14 +189,17 @@ public final class SagaController: ObservableObject {
     }
 
     /// Foretrukken ASR-engine for dansk. Andre sprog bruger altid Canary
-    /// eller Apple Speech (Hviske er dansk-only). Default = .canary fordi
-    /// Hviske-bridgen er stub indtil hviske-coreml-projektet er færdigt.
-    /// MultilingualASRRouter falder tilbage til Canary hvis Hviske er valgt
-    /// men ikke er klar.
+    /// eller Apple Speech (Hviske er dansk-only). MultilingualASRRouter
+    /// falder tilbage til Canary hvis Hviske er valgt men ikke er klar.
+    /// Auto-loader Hviske CoreML-modeller når brugeren skifter til den
+    /// (~10-20s cold-start første gang, derefter cached i memory).
     @Published public var preferredDanishEngine: DanishEngine {
         didSet {
             UserDefaults.standard.set(preferredDanishEngine.rawValue, forKey: "preferredDanishEngine")
             log.info("Foretrukken dansk-engine: \(self.preferredDanishEngine.rawValue, privacy: .public)")
+            if preferredDanishEngine == .hviske {
+                Task { [hviske] in await hviske.load() }
+            }
         }
     }
 
@@ -284,6 +287,14 @@ public final class SagaController: ObservableObject {
         // Start CoreML-load i baggrunden. FP16 indtil int4-kvantisering er færdig.
         Task { [asr] in
             await asr.load(useInt4: false)
+        }
+
+        // Hvis brugeren allerede har valgt Hviske som dansk-engine: load
+        // CoreML-modeller i baggrunden ved boot. Saver ~10-20s vente-tid
+        // ved første dictation. Idempotent — bridgen tjekker selv om den
+        // allerede er loaded.
+        if preferredDanishEngine == .hviske {
+            Task { [hviske] in await hviske.load() }
         }
 
         // Aktivér hotkey-listening

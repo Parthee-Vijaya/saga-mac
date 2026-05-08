@@ -166,6 +166,34 @@ public enum Hotkey: String, CaseIterable, Sendable {
         case .fn: return "fn"
         }
     }
+
+    /// SF Symbol til ikoner i settings-picker.
+    public var systemImage: String {
+        switch self {
+        case .rightOption, .leftOption: return "option"
+        case .rightCommand: return "command"
+        case .rightControl: return "control"
+        case .fn: return "globe"
+        }
+    }
+
+    /// Almindelige system-shortcut-konflikter brugeren skal være opmærksom på.
+    /// Returnerer warning-streng hvis tasten typisk bruges af macOS, ellers nil.
+    public var systemConflictWarning: String? {
+        switch self {
+        case .rightOption, .leftOption:
+            // Alt+typing = nogle special-chars. Brugeren kan ikke skrive
+            // ø/æ/å hvis Saga lytter mens de holder ⌥. Saga er dog hold-to-talk
+            // så det er sjældent et issue i praksis.
+            return nil
+        case .rightCommand:
+            return "⌘ alene er sjældent en system-shortcut, men ⌘ + bogstav (Q, W, Tab) kan trigge undermens at du slipper. Test grundigt."
+        case .rightControl:
+            return "⌃ alene er sikker. Ingen kendte konflikter."
+        case .fn:
+            return "Fn/globe-tasten skifter måske input-language eller åbner Character Viewer i nogle macOS-versioner. Test først."
+        }
+    }
 }
 
 private func hotkeyTapCallback(
