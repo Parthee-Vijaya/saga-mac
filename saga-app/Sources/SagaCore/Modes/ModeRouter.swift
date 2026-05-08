@@ -321,27 +321,75 @@ public enum ModeError: Error, LocalizedError {
     }
 }
 
+public struct ModeExample: Codable, Identifiable, Sendable, Hashable {
+    public let id: UUID
+    public var input: String
+    public var output: String
+
+    public init(id: UUID = UUID(), input: String = "", output: String = "") {
+        self.id = id
+        self.input = input
+        self.output = output
+    }
+
+    /// Eksemplet er meningsfuldt kun hvis BÅDE input og output har indhold.
+    public var isMeaningful: Bool {
+        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 public struct Mode: Identifiable, Sendable, Hashable, Codable {
     public let id: String
     public let title: String
     public let triggers: [String]
     public let systemPrompt: String
     public let temperature: Double
+    /// Multi-shot examples: input/output-par der gives LLM som few-shot
+    /// learning. Default tom array (zero-shot). Kun meaningful examples
+    /// (begge felter ikke-tomme) sendes til LLM.
+    public let examples: [ModeExample]
 
-    public init(id: String, title: String, triggers: [String], systemPrompt: String, temperature: Double = 0.3) {
+    public init(
+        id: String,
+        title: String,
+        triggers: [String],
+        systemPrompt: String,
+        temperature: Double = 0.3,
+        examples: [ModeExample] = []
+    ) {
         self.id = id
         self.title = title
         self.triggers = triggers
         self.systemPrompt = systemPrompt
         self.temperature = temperature
+        self.examples = examples
+    }
+
+    // Backwards-compat decode for modes gemt før examples-feltet eksisterede
+    private enum CodingKeys: String, CodingKey {
+        case id, title, triggers, systemPrompt, temperature, examples
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(String.self, forKey: .id)
+        self.title = try c.decode(String.self, forKey: .title)
+        self.triggers = try c.decode([String].self, forKey: .triggers)
+        self.systemPrompt = try c.decode(String.self, forKey: .systemPrompt)
+        self.temperature = try c.decodeIfPresent(Double.self, forKey: .temperature) ?? 0.3
+        self.examples = try c.decodeIfPresent([ModeExample].self, forKey: .examples) ?? []
     }
 
     @MainActor
     public func run(payload: String, controller: SagaController) async throws -> String {
+        let meaningfulExamples = examples.filter { $0.isMeaningful }
         let result = try await controller.lmStudio.chat(
             system: systemPrompt,
             user: payload,
-            temperature: temperature
+            temperature: temperature,
+            maxTokens: 4000,
+            examples: meaningfulExamples
         )
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }

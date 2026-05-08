@@ -13,6 +13,7 @@ public struct CustomModeEditor: View {
     @State private var triggersText: String
     @State private var systemPrompt: String
     @State private var temperature: Double
+    @State private var examples: [ModeExample]
 
     // MARK: - Live test-state
     @State private var testInput: String = ""
@@ -27,6 +28,7 @@ public struct CustomModeEditor: View {
         _triggersText = State(initialValue: existing?.triggers.joined(separator: ", ") ?? "")
         _systemPrompt = State(initialValue: existing?.systemPrompt ?? "")
         _temperature = State(initialValue: existing?.temperature ?? 0.3)
+        _examples = State(initialValue: existing?.examples ?? [])
     }
 
     public var body: some View {
@@ -100,6 +102,46 @@ public struct CustomModeEditor: View {
                 Text("Lav (0-0.3) = forudsigelig, høj (0.7-1) = kreativ.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+
+            // MARK: - Multi-shot examples
+            Divider().padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "list.number")
+                        .foregroundColor(.accentColor)
+                    Text("Eksempler (few-shot)").font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Button {
+                        examples.append(ModeExample())
+                    } label: {
+                        Label("Tilføj", systemImage: "plus")
+                            .font(.caption)
+                    }
+                    .controlSize(.small)
+                }
+
+                Text("Input/output-par der gives LLM som few-shot learning. Markant bedre konsistens end zero-shot. Tomme felter ignoreres.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                if examples.isEmpty {
+                    Text("Ingen eksempler endnu. Klik 'Tilføj' for at give LLM konkrete eksempler på ønsket output.")
+                        .font(.caption)
+                        .foregroundColor(.secondary.opacity(0.7))
+                        .italic()
+                        .padding(.vertical, 6)
+                } else {
+                    ForEach($examples) { $example in
+                        ExampleRow(
+                            example: $example,
+                            onDelete: {
+                                examples.removeAll { $0.id == example.id }
+                            }
+                        )
+                    }
+                }
             }
 
             // MARK: - Live test-sektion
@@ -213,6 +255,7 @@ public struct CustomModeEditor: View {
 
         let temp = self.temperature
         let lmStudio = controller.lmStudio
+        let activeExamples = examples.filter { $0.isMeaningful }
 
         Task {
             let start = Date()
@@ -221,7 +264,8 @@ public struct CustomModeEditor: View {
                     system: prompt,
                     user: input,
                     temperature: temp,
-                    maxTokens: 4000
+                    maxTokens: 4000,
+                    examples: activeExamples
                 )
                 await MainActor.run {
                     self.testOutput = result.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -282,12 +326,56 @@ public struct CustomModeEditor: View {
             title: title.trimmingCharacters(in: .whitespaces),
             triggers: parsedTriggers,
             systemPrompt: systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines),
-            temperature: temperature
+            temperature: temperature,
+            examples: examples.filter { $0.isMeaningful }
         )
         if existing == nil {
             controller.modes.addCustom(mode)
         } else {
             controller.modes.updateCustom(mode)
         }
+    }
+}
+
+private struct ExampleRow: View {
+    @Binding var example: ModeExample
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Input")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            TextEditor(text: $example.input)
+                .font(.body)
+                .frame(minHeight: 40, maxHeight: 60)
+                .padding(4)
+                .background(Color.gray.opacity(0.06))
+                .cornerRadius(4)
+
+            Text("Output")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary)
+            TextEditor(text: $example.output)
+                .font(.body)
+                .frame(minHeight: 40, maxHeight: 60)
+                .padding(4)
+                .background(Color.accentColor.opacity(0.06))
+                .cornerRadius(4)
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(6)
     }
 }

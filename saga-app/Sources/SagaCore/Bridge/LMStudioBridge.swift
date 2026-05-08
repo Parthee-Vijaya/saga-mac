@@ -124,6 +124,26 @@ public final class LMStudioBridge: @unchecked Sendable {
         try await chat(system: system, user: user, temperature: temperature, maxTokens: maxTokens, internal: ())
     }
 
+    /// Multi-shot variant: tilføjer few-shot examples mellem system-prompt
+    /// og user-input. LLM ser:
+    /// `[system, example1.input, example1.output, example2.input, ...,  user]`
+    /// Bruges af custom modes med examples-array konfigureret.
+    public func chat(
+        system: String,
+        user: String,
+        temperature: Double = 0.3,
+        maxTokens: Int = 2048,
+        examples: [ModeExample]
+    ) async throws -> String {
+        try await chatWithExamples(
+            system: system,
+            user: user,
+            examples: examples,
+            temperature: temperature,
+            maxTokens: maxTokens
+        )
+    }
+
     /// Multi-modal chat med ét billede (PNG-bytes). Bruges af VisionMode.
     /// Antager LM Studio-modellen er vision-capable (llava, gemma-4-vision, etc.).
     public func chatWithImage(
@@ -171,6 +191,58 @@ public final class LMStudioBridge: @unchecked Sendable {
             throw LMStudioError.emptyResponse
         }
         return text
+    }
+
+    /// Multi-shot internal — bygger messages-array med interleaved examples.
+    private func chatWithExamples(
+        system: String,
+        user: String,
+        examples: [ModeExample],
+        temperature: Double,
+        maxTokens: Int
+    ) async throws -> String {
+        let (baseURL, model) = queue.sync { (_baseURL, _model) }
+        let url = baseURL.appendingPathComponent("chat/completions")
+
+        // [system, ex1.user, ex1.assistant, ex2.user, ex2.assistant, ..., user]
+        var messages: [ChatRequest.Message] = [.init(role: "system", content: system)]
+        for ex in examples where ex.isMeaningful {
+            messages.append(.init(role: "user", content: ex.input))
+            messages.append(.init(role: "assistant", content: ex.output))
+        }
+        messages.append(.init(role: "user", content: user))
+
+        let payload = ChatRequest(
+            model: model,
+            messages: messages,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            stream: false
+        )
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, resp) = try await urlSession.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+            let body = String(data: data, encoding: .utf8) ?? "<binary>"
+            throw LMStudioError.serverError(status: status, body: body)
+        }
+
+        let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
+        guard let message = decoded.choices.first?.message else {
+            throw LMStudioError.emptyResponse
+        }
+        if message.content.isEmpty {
+            if let reasoning = message.reasoningContent, !reasoning.isEmpty {
+                throw LMStudioError.reasoningOnlyResponse(reasoningTokens: reasoning.count)
+            }
+            throw LMStudioError.emptyResponse
+        }
+        return message.content
     }
 
     private func chat(
