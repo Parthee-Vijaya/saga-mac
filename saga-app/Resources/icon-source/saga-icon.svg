@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Saga app-ikon - kildefil
+  ===========================
+  Format: 1024x1024 (vil blive eksporteret til 16/32/128/256/512 + @2x)
+  Design:
+    - Squircle-form med Apple's signature corner radius (~22% af canvas-bredde = 224)
+    - Baggrund: sky-blue gradient matchende SagaColors.accent → accentDeep
+    - Forgrund: hvid omvendt trekant (samme form som menubar-ikonet for visuel kontinuitet)
+    - Subtle inner-glow på trekanten for "premium"-feel
+    - Subtle linear-shadow på squircle-baggrunden for dybde
+
+  Konvertering: rsvg-convert -h 1024 saga-icon.svg > saga-icon.png
+                 (eller via macOS' build-in qlmanage)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Sky-blue gradient (matcher SagaColors.accentGradient: top-left til bottom-right) -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#66B3FF"/>   <!-- SagaColors.accent       (0.40, 0.70, 1.0) -->
+      <stop offset="100%" stop-color="#338CF2"/> <!-- SagaColors.accentDeep   (0.20, 0.55, 0.95) -->
+    </linearGradient>
+
+    <!-- Subtle dybde-shadow inde i squircle (top-light, bottom-shadow) -->
+    <linearGradient id="depthOverlay" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.10"/>
+    </linearGradient>
+
+    <!-- Subtle drop-shadow på trekanten -->
+    <filter id="triangleShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.25"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle (Apple's "ios-style" rounded square)
+       1024 canvas, 22% corner radius = ~225
+       Apple's faktiske squircle bruger en custom path, men en simpel
+       rounded-rect med rx=225 er meget tæt på - og kan polishes manuelt
+       hvis man vil have den helt perfekte iOS-style squircle.   -->
+  <rect x="0" y="0" width="1024" height="1024" rx="225" ry="225" fill="url(#bgGradient)"/>
+
+  <!-- Dybde-overlay (subtle vertikal lys-til-skygge) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="225" ry="225" fill="url(#depthOverlay)"/>
+
+  <!-- Omvendt trekant (peger nedad, samme form som menubar-ikonet)
+       Centreret i canvas. Bredde ~50% af canvas (510px), højde matcher
+       en ligesidet trekant: h = 510 * sqrt(3)/2 ~ 442. Centreret omkring (512, 512)
+       betyder top-y = 512 - 442/2 = 291, bottom-y = 512 + 442/2 = 733.
+       Top-edge: x fra 257 til 767, y = 291. Bottom-point: x = 512, y = 733. -->
+  <polygon points="257,291 767,291 512,733" fill="#FFFFFF" filter="url(#triangleShadow)"/>
+</svg>
