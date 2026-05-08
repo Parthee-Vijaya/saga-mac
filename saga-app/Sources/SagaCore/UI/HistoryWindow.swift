@@ -2,10 +2,13 @@ import AppKit
 import SwiftUI
 
 /// Fuld-vindue der viser hele transkriptionshistorikken. Kan åbnes via "Se alle…"
-/// fra menu-popover'en. Indeholder søgning, eksport og clear-funktion.
+/// fra menu-popover'en. Indeholder søgning (fuld-tekst over rå+resultat),
+/// dato-filter, mode-filter og clear-funktion.
 public struct HistoryWindow: View {
     @EnvironmentObject private var controller: SagaController
     @State private var query = ""
+    @State private var dateFilter: DateFilter = .all
+    @State private var modeFilter: String = "__all__"  // "__all__" / "__none__" / specific modeId
     @State private var showClearConfirm = false
 
     public init() {}
@@ -14,9 +17,11 @@ public struct HistoryWindow: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
+            filterBar
+            Divider()
             list
         }
-        .frame(minWidth: 580, minHeight: 400)
+        .frame(minWidth: 640, minHeight: 460)
         .alert("Slet hele historikken?", isPresented: $showClearConfirm) {
             Button("Annullér", role: .cancel) {}
             Button("Slet", role: .destructive) {
@@ -27,13 +32,41 @@ public struct HistoryWindow: View {
         }
     }
 
+    /// Unique mode-IDs i historikken — sorteret alfabetisk for picker.
+    private var availableModes: [String] {
+        let ids = controller.history.entries.compactMap { $0.modeId }
+        return Array(Set(ids)).sorted()
+    }
+
     private var filtered: [TranscriptEntry] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return controller.history.entries }
-        return controller.history.entries.filter {
-            $0.rawText.lowercased().contains(q)
-                || $0.processedText.lowercased().contains(q)
-                || ($0.modeId ?? "").contains(q)
+        let now = Date()
+
+        return controller.history.entries.filter { entry in
+            // 1. Tekst-søgning
+            if !q.isEmpty {
+                let textMatches = entry.rawText.lowercased().contains(q)
+                    || entry.processedText.lowercased().contains(q)
+                    || (entry.modeId ?? "").contains(q)
+                if !textMatches { return false }
+            }
+
+            // 2. Dato-filter
+            if let cutoff = dateFilter.cutoff(from: now), entry.timestamp < cutoff {
+                return false
+            }
+
+            // 3. Mode-filter
+            switch modeFilter {
+            case "__all__":
+                break  // alle accepteres
+            case "__none__":
+                if entry.modeId != nil { return false }
+            default:
+                if entry.modeId != modeFilter { return false }
+            }
+
+            return true
         }
     }
 
@@ -45,7 +78,7 @@ public struct HistoryWindow: View {
                 .textFieldStyle(.plain)
             Spacer()
             Text("\(filtered.count) / \(controller.history.entries.count)")
-                .font(.caption)
+                .font(.caption.monospacedDigit())
                 .foregroundColor(.secondary)
             Button {
                 showClearConfirm = true
@@ -56,6 +89,80 @@ public struct HistoryWindow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    private var filterBar: some View {
+        HStack(spacing: 10) {
+            // Dato-filter
+            Picker("Periode", selection: $dateFilter) {
+                ForEach(DateFilter.allCases, id: \.self) { filter in
+                    Text(filter.label).tag(filter)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 130)
+
+            // Mode-filter
+            Picker("Mode", selection: $modeFilter) {
+                Text("Alle modes").tag("__all__")
+                Text("Kun rå dictation").tag("__none__")
+                if !availableModes.isEmpty {
+                    Divider()
+                    ForEach(availableModes, id: \.self) { id in
+                        Text(id).tag(id)
+                    }
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 160)
+
+            Spacer()
+
+            // Reset-knap (vises kun når et filter er aktivt)
+            if dateFilter != .all || modeFilter != "__all__" || !query.isEmpty {
+                Button("Nulstil filtre") {
+                    query = ""
+                    dateFilter = .all
+                    modeFilter = "__all__"
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    enum DateFilter: String, CaseIterable, Hashable {
+        case today
+        case sevenDays
+        case thirtyDays
+        case all
+
+        var label: String {
+            switch self {
+            case .today: return "I dag"
+            case .sevenDays: return "Seneste 7 dage"
+            case .thirtyDays: return "Seneste 30 dage"
+            case .all: return "Alle"
+            }
+        }
+
+        /// Cutoff-dato. Entries før denne filtreres væk. nil = ingen cutoff.
+        func cutoff(from now: Date) -> Date? {
+            let cal = Calendar.current
+            switch self {
+            case .today:
+                return cal.startOfDay(for: now)
+            case .sevenDays:
+                return cal.date(byAdding: .day, value: -7, to: now)
+            case .thirtyDays:
+                return cal.date(byAdding: .day, value: -30, to: now)
+            case .all:
+                return nil
+            }
+        }
     }
 
     private var list: some View {
