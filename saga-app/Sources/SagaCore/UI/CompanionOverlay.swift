@@ -251,11 +251,34 @@ struct CompanionOverlayView: View {
                 .font(.system(size: 12))
                 .foregroundColor(SagaColors.accent)
                 .padding(.top, 2)
-            Text(companion.currentAssistantBuffer)
+            Text(typewriterAttributed(companion.currentAssistantBuffer))
                 .font(SagaTypography.body)
-                .foregroundColor(SagaColors.textPrimary)
                 .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
+                .animation(.easeOut(duration: 0.18), value: companion.currentAssistantBuffer)
         }
+    }
+
+    /// Bygger en typewriter-effekt: SENESTE ~20 chars vises i accent-farve
+    /// (de "nye" tokens), resten i primary. Når buffer vokser, bevæger
+    /// accent-zonen sig fremad — UX'et føles som chars fader fra accent →
+    /// primary i takt med at mere text kommer.
+    private func typewriterAttributed(_ buffer: String) -> AttributedString {
+        var attr = AttributedString(buffer)
+        attr.foregroundColor = SagaColors.textPrimary
+
+        let total = buffer.count
+        guard total > 0 else { return attr }
+
+        // Tail-region: seneste 20 chars (eller hele buffer hvis kortere)
+        let tailLength = 20
+        let tailStartOffset = max(0, total - tailLength)
+
+        // AttributedString.index(_:offsetByCharacters:) crash'er ikke når
+        // offset er valid — vi har allerede clamped tailStartOffset til [0, total]
+        let tailStart = attr.index(attr.startIndex, offsetByCharacters: tailStartOffset)
+        attr[tailStart..<attr.endIndex].foregroundColor = SagaColors.accent
+
+        return attr
     }
 }
