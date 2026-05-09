@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct VoiceSettingsTab: View {
@@ -8,6 +9,9 @@ struct VoiceSettingsTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                MicrophoneCard()
+                    .environmentObject(controller)
+
                 SettingsCard(
                     "Sprog",
                     footer: "EU-sprog kører via Canary (bedst kvalitet, ANE-accelereret). Tamilsk + andre kører via Apple Speech (kræver at sproget er downloaded i System Settings → Apple Intelligence & Siri)."
@@ -27,6 +31,56 @@ struct VoiceSettingsTab: View {
                         .pickerStyle(.menu)
                         .labelsHidden()
                         .frame(width: 180)
+                    }
+                }
+
+                SettingsCard(
+                    "Dansk ASR-engine",
+                    footer: "Vælger hvilken model der bruges når aktivt sprog er dansk. Hviske kommer som premium dansk-mode (kræver hviske-coreml er installeret — sideprojekt). Andre sprog bruger altid Canary eller Apple Speech."
+                ) {
+                    SettingsRow(
+                        "Engine",
+                        subtitle: controller.preferredDanishEngine.description
+                    ) {
+                        Picker("", selection: Binding(
+                            get: { controller.preferredDanishEngine },
+                            set: { controller.preferredDanishEngine = $0 }
+                        )) {
+                            ForEach(DanishEngine.allCases, id: \.self) { engine in
+                                Text(engine.displayName).tag(engine)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 220)
+                    }
+                    if controller.preferredDanishEngine == .hviske && !controller.hviske.isReady {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(SagaColors.warning)
+                                .font(.system(size: 11))
+                            Text(controller.hviske.state.label)
+                                .font(SagaTypography.caption)
+                                .foregroundColor(SagaColors.textSecondary)
+                            Spacer()
+                            Text("Falder tilbage til Canary")
+                                .font(SagaTypography.caption)
+                                .foregroundColor(SagaColors.textTertiary)
+                        }
+                        .padding(.top, 4)
+                    }
+                    if controller.preferredDanishEngine == .hviske {
+                        HStack(spacing: 6) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(SagaColors.accent)
+                                .font(.system(size: 11))
+                            Text("Hviske er CC BY-NC 4.0 — kun ikke-kommerciel brug. Se Om-fanen for fulde licens-detaljer.")
+                                .font(SagaTypography.caption)
+                                .foregroundColor(SagaColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.top, 4)
                     }
                 }
 
@@ -249,3 +303,86 @@ struct LMStudioDiscoverySection: View {
         }
     }
 }
+
+// MARK: - Microphone card
+
+/// Mikrofon-overblik. Viser den aktuelt aktive input-device + en read-only
+/// liste af tilgængelige mics, plus en knap der åbner System Settings →
+/// Sound så brugeren kan skifte default. Vi switcher ikke device fra Saga
+/// direkte fordi det kræver Core Audio APIs (kAudioHardwarePropertyDefault-
+/// InputDevice) — overdrevent for v1.0. Brugeren kan stadig se hvad Saga
+/// optager med + skifte i ét klik via System Settings.
+struct MicrophoneCard: View {
+    @EnvironmentObject private var controller: SagaController
+    @State private var availableDevices: [String] = []
+    @State private var refreshTick = 0
+
+    var body: some View {
+        SettingsCard(
+            "Mikrofon",
+            footer: "Saga bruger systemets default mikrofon. Skift via System Settings → Sound → Input — Saga opdager ændringen øjeblikkeligt."
+        ) {
+            HStack(spacing: 10) {
+                Image(systemName: "mic.fill")
+                    .foregroundColor(.accentColor)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Aktiv enhed")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(controller.audio.currentInputDeviceName)
+                        .font(.caption.monospaced())
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.sound?input") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    Label("Skift", systemImage: "arrow.up.right.square")
+                }
+                .controlSize(.small)
+            }
+
+            if availableDevices.count > 1 {
+                Divider().padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Tilgængelige (\(availableDevices.count))")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    ForEach(availableDevices, id: \.self) { name in
+                        HStack(spacing: 8) {
+                            Image(systemName: name == controller.audio.currentInputDeviceName ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(name == controller.audio.currentInputDeviceName ? .green : .secondary)
+                                .font(.system(size: 11))
+                            Text(name)
+                                .font(.caption)
+                                .foregroundColor(name == controller.audio.currentInputDeviceName ? .primary : .secondary)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            refresh()
+        }
+        .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
+            refresh()
+        }
+    }
+
+    private func refresh() {
+        // AVCaptureDevice.DiscoverySession er API'en til at få alle audio-input
+        // devices på macOS. Filteret .audio + .external dækker built-in,
+        // Bluetooth og USB.
+        let session = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .external],
+            mediaType: .audio,
+            position: .unspecified
+        )
+        availableDevices = session.devices.map(\.localizedName).sorted()
+        refreshTick += 1
+    }
+}
+

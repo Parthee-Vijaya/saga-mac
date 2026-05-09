@@ -11,19 +11,78 @@ public struct StatusView: View {
 
     public init() {}
 
+    // Læses én gang ved første brug — Info.plist-værdier ændrer sig ikke i runtime.
+    static let shortVersion: String = {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }()
+    static let buildNumber: String = {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+    }()
+    static let versionLabel: String = "v\(shortVersion) (\(buildNumber))"
+
+    /// Disclosure-state for kollapsbare sektioner. Default: status er åbent
+    /// (brugeren vil typisk se health-rows ved åbning), recent er kollapset
+    /// (kun brug for det på request).
+    @State private var showSystemDetails: Bool = true
+    @State private var showRecent: Bool = false
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
-            statusSection
-            Divider()
-            recentSection
-            Divider()
-            footer
+        ZStack {
+            // Glass-base — matcher RecordingHUD + CompanionOverlay vokabular.
+            // .ultraThinMaterial er underlagt, surfaceElevated giver tint så
+            // tekst kan læses oven på en hvilken som helst skrivebords-baggrund.
+            RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+                        .fill(SagaColors.surfaceElevated.opacity(0.85))
+                )
+                .overlay(
+                    AudioReactiveBorder(audio: controller.audio, state: controller.state)
+                )
+                .overlay(
+                    // Subtil accent-gradient i toppen — "lys ovenfra"-effekt
+                    // der får panelet til at føles let, ikke trykket.
+                    VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [SagaColors.accent.opacity(0.06), Color.clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 60)
+                        Spacer()
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous))
+                    .allowsHitTesting(false)
+                )
+                .sagaShadow(.subtle)
+
+            // Faktisk content
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                sectionDivider
+                statusDisclosure
+                sectionDivider
+                togglesSection
+                sectionDivider
+                recentDisclosure
+                sectionDivider
+                footer
+            }
+            .padding(.vertical, SagaSpacing.sm)
         }
-        .padding(.vertical, SagaSpacing.sm)
-        .background(SagaColors.background)
+        .padding(SagaSpacing.xs + 2)
         .preferredColorScheme(.dark)
+    }
+
+    /// Inset-divider — træk ikke helt ud til kant, så glass-edges bevarer
+    /// en ren kontur. Bruges i stedet for default .Divider() der spænder
+    /// hele bredden.
+    private var sectionDivider: some View {
+        Rectangle()
+            .fill(SagaColors.border)
+            .frame(height: 0.5)
+            .padding(.horizontal, SagaSpacing.md)
     }
 
     // MARK: - Header
@@ -33,11 +92,16 @@ public struct StatusView: View {
             Image(systemName: stateIcon)
                 .font(.system(size: 22))
                 .foregroundStyle(stateColor)
+                .symbolEffect(.pulse, isActive: controller.state == .recording)
+                .symbolEffect(.variableColor.iterative, isActive: controller.state == .transcribing || controller.state == .routing)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Saga")
-                    .font(SagaTypography.bodyEmphasis)
-                    .foregroundColor(SagaColors.textPrimary)
+                HStack(alignment: .firstTextBaseline, spacing: SagaSpacing.xs) {
+                    Text("Saga")
+                        .font(SagaTypography.bodyEmphasis)
+                        .foregroundColor(SagaColors.textPrimary)
+                    VersionLink()
+                }
                 Text(stateText)
                     .font(SagaTypography.caption)
                     .foregroundColor(SagaColors.textSecondary)
@@ -106,6 +170,80 @@ public struct StatusView: View {
         }
         .padding(.horizontal, SagaSpacing.lg)
         .padding(.vertical, SagaSpacing.sm)
+    }
+
+    // MARK: - Quick toggles (Command Surface tiles)
+
+    /// Tre tile-toggles til de hyppigst skiftende modes. Tile-format frem for
+    /// pill — større klikflade, tydeligere on/off-state, matcher Command Surface-stil.
+    /// Bindes direkte til SagaController's @Published properties.
+    private var togglesSection: some View {
+        HStack(spacing: SagaSpacing.xs + 2) {
+            ControlTile(
+                title: "Privacy",
+                systemImage: "shield.lefthalf.filled",
+                isOn: Binding(
+                    get: { controller.privacyMode },
+                    set: { controller.privacyMode = $0 }
+                ),
+                onColor: SagaColors.warning
+            )
+            ControlTile(
+                title: "Stenograf",
+                systemImage: "text.cursor",
+                isOn: Binding(
+                    get: { controller.stenografMode },
+                    set: { controller.stenografMode = $0 }
+                ),
+                onColor: SagaColors.accent
+            )
+            ControlTile(
+                title: "Wake-word",
+                systemImage: "waveform.badge.mic",
+                isOn: Binding(
+                    get: { controller.wakeWordEnabled },
+                    set: { controller.wakeWordEnabled = $0 }
+                ),
+                onColor: SagaColors.accent
+            )
+        }
+        .padding(.horizontal, SagaSpacing.md)
+        .padding(.vertical, SagaSpacing.sm)
+    }
+
+    // MARK: - Disclosure-wrappers
+
+    /// Status-disclosure: åbnet by default fordi det er primær info brugeren
+    /// kommer for. Klik på header for at kollapse/expand.
+    private var statusDisclosure: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureRowHeader(
+                title: "System",
+                isExpanded: showSystemDetails,
+                onToggle: { withAnimation(.easeInOut(duration: 0.18)) { showSystemDetails.toggle() } }
+            )
+            if showSystemDetails {
+                statusSection
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    /// Recent-disclosure: lukket by default — recent transcripts er sekundær info
+    /// (5×44pt fyldte før dropdown'en), kan stadig åbnes med ét klik.
+    private var recentDisclosure: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureRowHeader(
+                title: "Seneste",
+                badge: controller.history.entries.isEmpty ? nil : "\(controller.history.entries.count)",
+                isExpanded: showRecent,
+                onToggle: { withAnimation(.easeInOut(duration: 0.18)) { showRecent.toggle() } }
+            )
+            if showRecent {
+                recentSection
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 
     // MARK: - Recent
@@ -374,5 +512,197 @@ struct HistoryRowCompact: View {
                 }
             }
         }
+    }
+}
+
+/// Audio-reactive accent-border til glass-base. Observer audio.levelHistory
+/// direkte (@ObservedObject) så SwiftUI re-evaluerer når levels opdaterer.
+/// Idle: konstant 0.18 (subtil ring). Recording: 0.35→0.90 audio-reactive.
+/// Transcribing/routing: 0.45 fast working-tilstand.
+struct AudioReactiveBorder: View {
+    @ObservedObject var audio: AudioCapture
+    let state: SagaState
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+            .strokeBorder(SagaColors.accent.opacity(opacity), lineWidth: 1)
+            .animation(.easeOut(duration: 0.22), value: opacity)
+    }
+
+    private var opacity: Double {
+        switch state {
+        case .idle:
+            return 0.18
+        case .recording:
+            let recent = audio.levelHistory.suffix(5)
+            guard !recent.isEmpty else { return 0.35 }
+            let avg = recent.reduce(0, +) / Float(recent.count)
+            let normalized = min(1.0, Double(avg) * 2.0)
+            return 0.35 + normalized * 0.55
+        case .transcribing, .routing:
+            return 0.45
+        }
+    }
+}
+
+/// Tile-style toggle — Command Surface-tile fra menubar-redesign-plan'en.
+/// Større klikflade end pill, tydeligere on/off, accent-glow når aktiv.
+/// Layout: label uppercase top, ikon stort i midten, state-tekst bund.
+/// Bindes til SagaController's @Published booleans.
+struct ControlTile: View {
+    let title: String
+    let systemImage: String
+    @Binding var isOn: Bool
+    let onColor: Color
+
+    @State private var isHovered = false
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: { isOn.toggle() }) {
+            VStack(spacing: 4) {
+                Text(title.uppercased())
+                    .font(SagaTypography.label)
+                    .tracking(0.5)
+                    .foregroundColor(isOn ? onColor : SagaColors.textTertiary)
+                    .lineLimit(1)
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(isOn ? onColor : SagaColors.textPrimary)
+                    .symbolEffect(.bounce, value: isOn)
+                Text(isOn ? "ON" : "OFF")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundColor(isOn ? onColor.opacity(0.9) : SagaColors.textTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, SagaSpacing.sm + 2)
+            .background(
+                RoundedRectangle(cornerRadius: SagaRadii.medium, style: .continuous)
+                    .fill(backgroundFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: SagaRadii.medium, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: isOn ? 1 : 0.5)
+            )
+            .shadow(color: isOn ? onColor.opacity(0.20) : .clear, radius: 8, x: 0, y: 0)
+            .scaleEffect(isPressed ? 0.96 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .pressEvents(
+            onPress: { isPressed = true },
+            onRelease: { isPressed = false }
+        )
+        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isOn)
+        .animation(.easeInOut(duration: 0.12), value: isHovered)
+        .animation(.easeInOut(duration: 0.08), value: isPressed)
+    }
+
+    private var backgroundFill: Color {
+        if isOn {
+            return onColor.opacity(isHovered ? 0.20 : 0.14)
+        }
+        if isPressed { return SagaColors.surfaceElevated }
+        if isHovered { return SagaColors.surface }
+        return Color.white.opacity(0.02)
+    }
+
+    private var borderColor: Color {
+        if isOn { return onColor.opacity(0.50) }
+        if isHovered { return SagaColors.borderStrong }
+        return SagaColors.border
+    }
+}
+
+/// Disclosure-header til kollapsbare sektioner. Klikbar HStack med chevron
+/// der roterer 90° når åbent. Optional badge til at vise et antal.
+struct DisclosureRowHeader: View {
+    let title: String
+    var badge: String? = nil
+    let isExpanded: Bool
+    let onToggle: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: SagaSpacing.xs + 2) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(SagaColors.textTertiary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.4)
+                    .foregroundColor(isHovered ? SagaColors.textPrimary : SagaColors.textSecondary)
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1.5)
+                        .background(
+                            Capsule().fill(SagaColors.accent.opacity(0.18))
+                        )
+                        .foregroundColor(SagaColors.accent)
+                }
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.horizontal, SagaSpacing.lg)
+            .padding(.vertical, SagaSpacing.xs + 2)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: isExpanded)
+        .animation(.easeInOut(duration: 0.10), value: isHovered)
+    }
+}
+
+/// Klikbar version-label i menubar-headeren. Åbner GitHub releases-siden
+/// så brugeren kan læse changelog. Vi går til /releases (oversigt) frem for
+/// /releases/tag/vX.Y.Z fordi seneste version ikke nødvendigvis er tagget
+/// endnu under aktiv udvikling.
+struct VersionLink: View {
+    @State private var isHovered = false
+
+    private static let releasesURL = URL(string: "https://github.com/Parthee-Vijaya/saga-mac/releases")!
+
+    var body: some View {
+        Button(action: openReleases) {
+            Text(StatusView.versionLabel)
+                .font(SagaTypography.caption)
+                .foregroundColor(isHovered ? SagaColors.accent : SagaColors.textTertiary)
+                .underline(isHovered, color: SagaColors.accent)
+        }
+        .buttonStyle(.plain)
+        .help("Version \(StatusView.shortVersion) · Build \(StatusView.buildNumber) — klik for release notes")
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+    }
+
+    private func openReleases() {
+        NSWorkspace.shared.open(Self.releasesURL)
     }
 }

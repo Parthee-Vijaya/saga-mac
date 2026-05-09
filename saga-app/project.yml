@@ -10,6 +10,9 @@ options:
 packages:
   CanaryKit:
     path: ../../canary-coreml/swift
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: "0.4.0"
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"
@@ -36,6 +39,8 @@ targets:
     dependencies:
       - package: CanaryKit
         product: CanaryKit
+      - package: WhisperKit
+        product: WhisperKit
       - package: Sparkle
         product: Sparkle
     info:
@@ -86,6 +91,29 @@ targets:
       testTargets:
         - SagaCoreTests
       gatherCoverageData: true
+
+  saga-cli:
+    type: tool
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/SagaCLI
+    dependencies:
+      - package: CanaryKit
+        product: CanaryKit
+      - package: WhisperKit
+        product: WhisperKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dk.parthee.saga.cli
+        PRODUCT_NAME: saga-cli
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        DEAD_CODE_STRIPPING: YES
+        CODE_SIGN_IDENTITY: "9E6001BC0D64B78FD7E2A7B2BA6279A222A4EB5F"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: "33XTP64658"
+        PROVISIONING_PROFILE_SPECIFIER: ""
 
   SagaCoreTests:
     type: bundle.unit-test

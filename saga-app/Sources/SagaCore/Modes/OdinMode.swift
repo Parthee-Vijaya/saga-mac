@@ -140,7 +140,7 @@ public enum OdinError: Error, LocalizedError {
         case .badEndpoint(let s):
             return "Odin: ugyldigt endpoint '\(s)'"
         case .networkFailed(let underlying):
-            return "Odin daemon ikke reachable (\(underlying.localizedDescription)). Start den med: ODIN_DATA_DIR=~/.odin node ~/Desktop/Claude/projekter/odin/packages/daemon/dist/index.js"
+            return "Odin daemon ikke reachable (\(underlying.localizedDescription)). Start den med: ODIN_DATA_DIR=~/.odin node ~/Desktop/Claude/projekter/aktive/odin/packages/daemon/dist/index.js"
         case .httpStatus(let code):
             return "Odin daemon svarede HTTP \(code)"
         case .parseFailed(let underlying):

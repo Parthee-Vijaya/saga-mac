@@ -82,20 +82,29 @@ struct GeneralSettingsTab: View {
                     }
                 }
 
-                SettingsCard("Push-to-talk") {
+                SettingsCard(
+                    "Push-to-talk",
+                    footer: hotkeyConflictWarning ?? "Hold tasten for at tale, slip for at indsætte. Live-test: tryk og hold tasten — preview-pillen tænder grøn når Saga kan se trykket."
+                ) {
                     SettingsRow(
                         "Hotkey",
                         subtitle: hotkeyHelp
                     ) {
                         Picker("", selection: $hotkeyRaw) {
                             ForEach(Hotkey.allCases, id: \.rawValue) { key in
-                                Text(key.displayName).tag(key.rawValue)
+                                Label(key.displayName, systemImage: key.systemImage).tag(key.rawValue)
                             }
                         }
                         .pickerStyle(.menu)
                         .labelsHidden()
-                        .frame(width: 180)
+                        .frame(width: 220)
                     }
+                    Divider().padding(.vertical, 4)
+                    HotkeyLivePreview(
+                        hotkeyRaw: hotkeyRaw,
+                        isActive: controller.state == .recording
+                    )
+                    .environmentObject(controller)
                 }
 
                 SettingsCard("Permissions") {
@@ -136,6 +145,58 @@ struct GeneralSettingsTab: View {
             return "Universal — virker på alle keyboards inkl. Logitech MX, Magic Keyboard, USB."
         case .rightCommand, .rightControl:
             return "Sjældent brugt til normalt arbejde. Sikker hvis ⌥ er optaget."
+        }
+    }
+
+    /// Konflikt-warning-tekst hvis brugeren har valgt en hotkey der kan
+    /// kollidere med standard macOS-shortcuts.
+    private var hotkeyConflictWarning: String? {
+        guard let key = Hotkey(rawValue: hotkeyRaw) else { return nil }
+        return key.systemConflictWarning
+    }
+}
+
+/// Visuel preview-strip der lyser op når brugeren faktisk holder den
+/// valgte hotkey nede. Bekræfter at CGEventTap fanger trykket korrekt
+/// — brugeren ser øjeblikkelig feedback i stedet for at gætte.
+struct HotkeyLivePreview: View {
+    let hotkeyRaw: String
+    let isActive: Bool
+
+    @EnvironmentObject private var controller: SagaController
+
+    var body: some View {
+        let key = Hotkey(rawValue: hotkeyRaw) ?? .rightOption
+        HStack(spacing: 10) {
+            Text("Live-preview")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .frame(width: 90, alignment: .leading)
+
+            HStack(spacing: 6) {
+                Image(systemName: key.systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(key.keySymbol)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .foregroundColor(isActive ? .green : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isActive ? Color.green.opacity(0.15) : Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(isActive ? Color.green.opacity(0.5) : Color.secondary.opacity(0.18), lineWidth: 1)
+            )
+            .animation(.easeInOut(duration: 0.12), value: isActive)
+
+            Text(isActive ? "Saga lytter ✓" : "Hold tasten for at teste")
+                .font(.caption)
+                .foregroundColor(isActive ? .green : .secondary)
+
+            Spacer()
         }
     }
 }
