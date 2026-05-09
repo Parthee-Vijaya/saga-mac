@@ -1,8 +1,23 @@
 # Saga
 
+[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-only-black?logo=apple)](https://support.apple.com/en-us/HT211814)
+[![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue?logo=apple)](https://www.apple.com/macos/)
+[![Swift 6](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://www.swift.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 **Saga er en Mac-native voice-assistant der gør tale til tekst på dansk uden at sende noget til skyen.**
 
 Du holder ⌥ Højre Option, taler dansk, og slipper. Teksten lander præcist hvor din cursor står — uanset om du er i Notes, Mail, Slack, Claude, VS Code eller en webformular i Chrome. Hele transkriptionen kører på din Mac via Apple Neural Engine. Ingen lyd forlader maskinen. Ingen abonnement. Ingen telemetri.
+
+## ASR-engines (vælg i Settings → Voice)
+
+| Engine | Sprog | License | Kvalitet (FLEURS-DA, strict) | Best til |
+|---|---|---|---|---|
+| **Canary-1b-v2** (default) | 25 EU-sprog inkl. dansk | Apache 2.0 (kommerciel-OK) | 11.39% WER | Multi-lingual, code-switching |
+| **Hviske-v3** (opt-in) | Kun dansk | CC BY-NC 4.0 (privat) | 10.74% WER | Pure-dansk samtale |
+| **Apple Speech** (fallback) | Tamilsk + andre | Apple SLA | varierer | Sprog Canary ikke dækker |
+
+Begge model-vægte downloades on-demand første gang du vælger dem — Saga's app-bundle er ~12 MB.
 
 ## Det den kan
 
@@ -424,14 +439,29 @@ Trigger-ord routes output gennem din lokale LM Studio:
 - Transkripter gemmes lokalt (kan slettes via "Ryd alt"-knap i historik)
 - Hvis LM Studio er konfigureret: kun mode-prompts sendes til localhost:1234
 
+## Bidrage
+
+Saga er et åbent projekt — bug-rapporter, feature-forslag og pull requests er velkomne.
+
+- **Bugs/forslag**: [open en issue](https://github.com/Parthee-Vijaya/saga-mac/issues/new/choose)
+- **Pull requests**: læs [CONTRIBUTING.md](CONTRIBUTING.md) for build-guide, kode-stil og PR-checklist
+- **Sårbarheder**: se [SECURITY.md](SECURITY.md)
+- **Adfærdskodeks**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1)
+
 ## Licenser
 
-- **Saga**: privat projekt, personlig brug.
-- **Canary-1b-v2** (NVIDIA): CC BY 4.0 — fri commercial brug med attribution.
-  CoreML-konvertering ligger i [canary-coreml-repo](https://github.com/Parthee-Vijaya/canary-coreml).
-- **CanaryKit** (Swift Package i canary-coreml): MIT.
-- **PyTorch, CoreMLTools, Transformers, NeMo**: respektive open-source-licenser.
+| Komponent | Licens | Note |
+|---|---|---|
+| **Saga** (denne kode) | [MIT](LICENSE) | Bruges frit, inkl. kommercielt |
+| **Canary-1b-v2** (NVIDIA, default ASR) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Kommerciel-OK med attribution |
+| **CanaryKit** Swift Package | [MIT](https://github.com/Parthee-Vijaya/canary-coreml) | Wrapper-kode i søsterprojektet |
+| **Hviske-v3** (syv.ai, opt-in ASR) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | **Kun ikke-kommerciel brug** — accepteres via in-app modal før download |
+| **WhisperKit** (Argmax) | MIT | Bruges internt til Hviske-inference |
+| **Sparkle** | MIT | Auto-update |
+| **Apple Speech.framework** | Apple SLA | Indbygget i macOS |
+
+Når du vælger Hviske som engine i Settings, viser Saga en modal med CC BY-NC 4.0-betingelserne. Du kan altid skifte tilbage til Canary i Settings → Voice.
 
 ## Repo
 
-Privat: https://github.com/Parthee-Vijaya/saga-mac
+Public: https://github.com/Parthee-Vijaya/saga-mac
