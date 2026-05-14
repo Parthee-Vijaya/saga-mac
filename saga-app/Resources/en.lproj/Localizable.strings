@@ -1,0 +1,62 @@
+/* Localizable.strings — English
+
+   Saga is Danish-first by design — most UI is still hardcoded in Danish.
+   This file is a starting point for community-contributed English translations.
+
+   See https://github.com/Parthee-Vijaya/saga-mac/blob/main/CONTRIBUTING.md
+   for how to add translations.
+*/
+
+/* App + menubar */
+"saga.app.name" = "Saga";
+"saga.menubar.hold_to_talk" = "Hold ⌥ to speak";
+"saga.menubar.releases.tooltip" = "Click for release notes";
+
+/* States */
+"saga.state.idle" = "Ready";
+"saga.state.recording" = "Listening…";
+"saga.state.transcribing" = "Transcribing…";
+"saga.state.routing" = "Thinking…";
+"saga.state.loading_asr" = "Loading ASR model";
+"saga.state.stenograf" = "Ready · Stenograph mode";
+
+/* Quick toggles */
+"saga.toggle.privacy" = "Privacy";
+"saga.toggle.stenograf" = "Stenograph";
+"saga.toggle.wakeword" = "Wake word";
+"saga.toggle.on" = "ON";
+"saga.toggle.off" = "OFF";
+
+/* First-run wizard */
+"firstrun.welcome.title" = "Welcome to Saga";
+"firstrun.permissions.title" = "Let's set up permissions";
+"firstrun.mictest.title" = "Test your microphone";
+"firstrun.hotkey.title" = "Choose your push-to-talk key";
+"firstrun.asr_engine.title" = "Choose Danish engine";
+"firstrun.lmstudio.title" = "Connect LM Studio?";
+"firstrun.licenses.title" = "Licenses & privacy";
+"firstrun.continue" = "Continue";
+"firstrun.skip" = "Skip";
+"firstrun.done" = "Done";
+"firstrun.start" = "Get started";
+
+/* Settings tabs */
+"settings.tab.general" = "General";
+"settings.tab.voice" = "Voice";
+"settings.tab.modes" = "Modes";
+"settings.tab.reminders" = "Reminders";
+"settings.tab.profiles" = "Profiles";
+"settings.tab.about" = "About";
+
+/* Errors */
+"error.mic.denied" = "Microphone access denied. Enable in System Settings → Privacy → Microphone.";
+"error.ax.missing" = "Accessibility access missing. Enable in System Settings → Privacy & Security → Accessibility.";
+"error.lmstudio.down" = "LM Studio is unreachable. Mode routing is disabled.";
+"error.models.loading" = "Loading models… please wait ~10 seconds.";
+
+/* Common buttons */
+"button.open_settings" = "Open System Settings";
+"button.retry" = "Try again";
+"button.cancel" = "Cancel";
+"button.delete" = "Delete";
+"button.reset" = "Reset";

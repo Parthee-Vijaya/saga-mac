@@ -21,7 +21,9 @@ public struct FirstRunWindow: View {
         case permissions
         case micTest
         case hotkey
+        case asrEngine
         case lmStudio
+        case licenses
 
         var title: String {
             switch self {
@@ -29,7 +31,9 @@ public struct FirstRunWindow: View {
             case .permissions: return "Lad os sætte permissions op"
             case .micTest: return "Test din mikrofon"
             case .hotkey: return "Vælg din push-to-talk-tast"
+            case .asrEngine: return "Vælg dansk-engine"
             case .lmStudio: return "Vil du tilslutte LM Studio?"
+            case .licenses: return "Licenser & privatliv"
             }
         }
     }
@@ -77,7 +81,9 @@ public struct FirstRunWindow: View {
         case .permissions: permissionsContent
         case .micTest: micTestContent
         case .hotkey: hotkeyContent
+        case .asrEngine: asrEngineContent
         case .lmStudio: lmStudioContent
+        case .licenses: licensesContent
         }
     }
 
@@ -298,6 +304,81 @@ public struct FirstRunWindow: View {
         .padding(.top, SagaSpacing.xl)
     }
 
+    // MARK: - ASR engine
+
+    private var asrEngineContent: some View {
+        VStack(alignment: .leading, spacing: SagaSpacing.lg) {
+            heading(WizardStep.asrEngine.title)
+            Text("Saga har to dansk-engines. Du kan altid skifte i Indstillinger → Stemme.")
+                .font(SagaTypography.body)
+                .foregroundColor(SagaColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: SagaSpacing.sm + 2) {
+                EngineCard(
+                    title: "Canary",
+                    tagline: "25 EU-sprog · Apache 2.0",
+                    description: "NVIDIA's multilingual ASR. Kommerciel-OK med attribution. ~1,8 GB download.",
+                    isRecommended: true,
+                    isSelected: controller.preferredDanishEngine == .canary,
+                    onSelect: { controller.preferredDanishEngine = .canary }
+                )
+                EngineCard(
+                    title: "Hviske",
+                    tagline: "Dansk-først · CC BY-NC 4.0",
+                    description: "syv.ai's Whisper-finetune. KUN privat brug. ~2,9 GB download.",
+                    isRecommended: false,
+                    isSelected: controller.preferredDanishEngine == .hviske,
+                    onSelect: { controller.preferredDanishEngine = .hviske }
+                )
+            }
+
+            if controller.preferredDanishEngine == .hviske {
+                HStack(alignment: .top, spacing: SagaSpacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(SagaColors.warning)
+                        .font(.system(size: 12))
+                    Text("Ved at vælge Hviske accepterer du CC BY-NC 4.0. Modellen downloades først når du laver din første dansk-dictation.")
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, SagaSpacing.xs)
+            }
+
+            Spacer()
+        }
+        .padding(.top, SagaSpacing.xl)
+    }
+
+    // MARK: - Licenses
+
+    private var licensesContent: some View {
+        VStack(alignment: .leading, spacing: SagaSpacing.md) {
+            heading(WizardStep.licenses.title)
+            Text("Saga er privat. Ingen lyd forlader din Mac. Ingen telemetri.")
+                .font(SagaTypography.body)
+                .foregroundColor(SagaColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: SagaSpacing.sm) {
+                LicenseRowSimple(name: "Saga", license: "MIT", note: "Open source — bidrag velkomne")
+                LicenseRowSimple(name: "Canary-1b-v2 (NVIDIA)", license: "CC BY 4.0", note: "Kommerciel-OK med attribution")
+                LicenseRowSimple(name: "Hviske-v3 (syv.ai)", license: "CC BY-NC 4.0", note: "Kun privat brug — opt-in")
+                LicenseRowSimple(name: "Apple Speech (fallback)", license: "Apple SLA", note: "Indbygget i macOS")
+                LicenseRowSimple(name: "LM Studio (valgfri)", license: "Tredjepart", note: "Saga sender kun til localhost")
+            }
+            .padding(.top, SagaSpacing.xs)
+
+            Spacer()
+
+            Text("Fuld liste i Indstillinger → Om.")
+                .font(SagaTypography.caption)
+                .foregroundColor(SagaColors.textTertiary)
+        }
+        .padding(.top, SagaSpacing.xl)
+    }
+
     // MARK: - Heading + footer
 
     private func heading(_ text: String) -> some View {
@@ -315,7 +396,7 @@ public struct FirstRunWindow: View {
             .disabled(!canAdvance)
             .keyboardShortcut(.defaultAction)
 
-            if step != .welcome && step != .lmStudio {
+            if step != .welcome && step != .licenses {
                 Button("Spring over") {
                     advance()
                 }
@@ -330,7 +411,9 @@ public struct FirstRunWindow: View {
         case .permissions: return canAdvance ? "Fortsæt setup" : "Granté mikrofon først"
         case .micTest: return "Fortsæt"
         case .hotkey: return "Fortsæt"
-        case .lmStudio: return "Færdig"
+        case .asrEngine: return "Fortsæt"
+        case .lmStudio: return "Fortsæt"
+        case .licenses: return "Færdig"
         }
     }
 
@@ -338,7 +421,7 @@ public struct FirstRunWindow: View {
         switch step {
         case .welcome: return true
         case .permissions: return micStatus == .authorized  // AX kan skip'es
-        case .micTest, .hotkey, .lmStudio: return true
+        case .micTest, .hotkey, .asrEngine, .lmStudio, .licenses: return true
         }
     }
 
@@ -502,5 +585,116 @@ private struct MicTestWaveform: View {
         let boosted = pow(CGFloat(level), 0.7)
         let scaled = max(4, boosted * maxHeight)
         return min(maxHeight, scaled)
+    }
+}
+
+// MARK: - ASR engine + license helpers
+
+/// Klikbart kort til engine-valg i first-run wizard. Selection-state vises
+/// med accent-border + accent-glow. Anbefalet-flag vises som lille pill.
+private struct EngineCard: View {
+    let title: String
+    let tagline: String
+    let description: String
+    let isRecommended: Bool
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: SagaSpacing.md) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(isSelected ? SagaColors.accent : SagaColors.textTertiary)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: SagaSpacing.sm) {
+                        Text(title)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(SagaColors.textPrimary)
+                        if isRecommended {
+                            Text("ANBEFALET")
+                                .font(.system(size: 9, weight: .semibold))
+                                .tracking(0.5)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(SagaColors.accent.opacity(0.18)))
+                                .foregroundColor(SagaColors.accent)
+                        }
+                        Spacer()
+                    }
+                    Text(tagline)
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textSecondary)
+                    Text(description)
+                        .font(SagaTypography.caption)
+                        .foregroundColor(SagaColors.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+                }
+            }
+            .padding(SagaSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: SagaRadii.medium, style: .continuous)
+                    .fill(backgroundFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: SagaRadii.medium, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: isSelected ? 1.5 : 0.5)
+            )
+            .shadow(color: isSelected ? SagaColors.accent.opacity(0.18) : .clear, radius: 8, x: 0, y: 0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
+        .animation(.easeInOut(duration: 0.10), value: isHovered)
+    }
+
+    private var backgroundFill: Color {
+        if isSelected { return SagaColors.accent.opacity(0.10) }
+        if isHovered { return SagaColors.surface }
+        return Color.white.opacity(0.02)
+    }
+
+    private var borderColor: Color {
+        if isSelected { return SagaColors.accent.opacity(0.55) }
+        if isHovered { return SagaColors.borderStrong }
+        return SagaColors.border
+    }
+}
+
+/// Kompakt license-row til first-run wizard. Mere kompakt end About-tabbens
+/// LicenseCard — vi viser ikke links her (de er allerede tilgængelige i Om).
+private struct LicenseRowSimple: View {
+    let name: String
+    let license: String
+    let note: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: SagaSpacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(SagaColors.textPrimary)
+                Text(note)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textTertiary)
+            }
+            Spacer(minLength: SagaSpacing.sm)
+            Text(license)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundColor(SagaColors.textSecondary)
+        }
     }
 }

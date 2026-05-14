@@ -112,6 +112,26 @@ public final class SagaController: ObservableObject {
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
+
+    /// Strukturet version af lastError. Sættes parallelt med lastError-string
+    /// så view-laget kan vise actionable "Fix"-knap når recovery findes.
+    /// Migration sker gradvist — paths der ikke bruger SagaError sætter
+    /// kun lastError (string).
+    @Published public private(set) var recentError: SagaError?
+
+    /// Sæt både structured + string-form. Kaldes fra alle nye error-paths.
+    /// Eksisterende `lastError = "..."` direct-assignment paths kan migrere
+    /// til denne funktion gradvist.
+    public func reportError(_ error: SagaError) {
+        recentError = error
+        lastError = error.detail
+    }
+
+    /// Ryd både structured + string-form. Kaldes ved successful recovery.
+    public func clearError() {
+        recentError = nil
+        lastError = nil
+    }
     @Published public private(set) var booted = false
     @Published public private(set) var discoveredEndpoints: [DiscoveredEndpoint] = []
     @Published public private(set) var isDiscoveringLMStudio = false
@@ -446,13 +466,13 @@ public final class SagaController: ObservableObject {
                 Task { @MainActor in
                     self?.log.info("Mikrofon-permission granted: \(granted)")
                     if !granted {
-                        self?.lastError = "Mikrofon-adgang blev nægtet. Aktivér i System Settings → Privacy → Microphone."
+                        self?.reportError(.micPermissionDenied())
                     }
                 }
             }
         case .denied, .restricted:
             log.warning("Mikrofon-permission er nægtet")
-            lastError = "Mikrofon-adgang mangler. Aktivér i System Settings → Privacy → Microphone."
+            reportError(.micPermissionDenied())
         case .authorized:
             log.info("Mikrofon-permission OK")
         @unknown default:

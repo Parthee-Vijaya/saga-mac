@@ -36,6 +36,8 @@ targets:
       - path: Sources/SagaApp
       - path: Sources/SagaCore
       - path: Resources/AppIcon.icns
+      - path: Resources/da.lproj
+      - path: Resources/en.lproj
     dependencies:
       - package: CanaryKit
         product: CanaryKit

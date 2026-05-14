@@ -439,6 +439,10 @@ Trigger-ord routes output gennem din lokale LM Studio:
 - Transkripter gemmes lokalt (kan slettes via "Ryd alt"-knap i historik)
 - Hvis LM Studio er konfigureret: kun mode-prompts sendes til localhost:1234
 
+## Localization
+
+Saga er **dansk-first by design** — det meste af UI'et er stadig hardcoded i dansk. Localization-infrastrukturen er klar (`saga-app/Resources/da.lproj/` og `en.lproj/`), så community-bidrag af engelske, svenske, norske eller tyske oversættelser er meget velkomne. Se [CONTRIBUTING.md](CONTRIBUTING.md) for hvordan.
+
 ## Bidrage
 
 Saga er et åbent projekt — bug-rapporter, feature-forslag og pull requests er velkomne.
