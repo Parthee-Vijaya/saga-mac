@@ -32,9 +32,12 @@ by this license — they are downloaded separately and have their own terms:
   CoreML conversion in https://github.com/Parthee-Vijaya/canary-coreml.
 
 - **syv.ai Hviske-v3** (optional Danish premium engine) — CC BY-NC 4.0.
-  **Non-commercial use only.** When Saga downloads this model on your behalf,
-  you accept these terms via an in-app license modal. For commercial use,
-  contact mads@syv.ai. Hosted at https://huggingface.co/syvai/hviske-v3.
+  **Non-commercial use only.** Saga does not download or redistribute this
+  model — you convert it yourself from syv.ai's official weights via the
+  sibling project https://github.com/Parthee-Vijaya/hviske-coreml, and you
+  accept syv.ai's terms when downloading from
+  https://huggingface.co/syvai/hviske-v3. For commercial use, contact
+  mads@syv.ai.
 
 - **Apple Speech.framework** (fallback for languages not covered by Canary)
   — Apple Software License (built into macOS).

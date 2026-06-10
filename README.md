@@ -469,7 +469,7 @@ Saga er et åbent projekt — bug-rapporter, feature-forslag og pull requests er
 | **Saga** (denne kode) | [MIT](LICENSE) | Bruges frit, inkl. kommercielt |
 | **Canary-1b-v2** (NVIDIA, default ASR) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Kommerciel-OK med attribution |
 | **CanaryKit** Swift Package | [MIT](https://github.com/Parthee-Vijaya/canary-coreml) | Wrapper-kode i søsterprojektet |
-| **Hviske-v3** (syv.ai, opt-in ASR) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | **Kun ikke-kommerciel brug** — accepteres via in-app modal før download |
+| **Hviske-v3** (syv.ai, opt-in ASR) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | **Kun ikke-kommerciel brug** — konverteres selv via [hviske-coreml](https://github.com/Parthee-Vijaya/hviske-coreml); Saga redistribuerer ikke vægtene |
 | **WhisperKit** (Argmax) | MIT | Bruges internt til Hviske-inference |
 | **Sparkle** | MIT | Auto-update |
 | **Apple Speech.framework** | Apple SLA | Indbygget i macOS |

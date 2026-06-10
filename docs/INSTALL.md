@@ -99,9 +99,12 @@ Saga har to dansk-engines som du kan vælge mellem i first-run wizard'en eller i
 | **Canary-1b-v2** (default) | Apache 2.0 — kommerciel-OK | 25 EU-sprog | ~1.8 GB | Multi-lingual, code-switching, kommerciel brug |
 | **Hviske-v3** (opt-in) | CC BY-NC 4.0 — kun privat | Kun dansk | ~2.9 GB | Premium dansk-samtale (ikke-kommerciel) |
 
-DMG'en (`Saga-0.9.0.dmg`, ~1.8 GB) bundler Canary fra start. Hviske kan
-aktiveres efter installation — den downloades fra Hugging Face/GitHub første gang
-du vælger den. Saga viser en license-modal før download.
+DMG'en (`Saga-0.9.0.dmg`, ~1.8 GB) bundler Canary fra start — dictation virker
+offline med det samme. Hviske installeres separat: klon søsterrepoet
+[hviske-coreml](https://github.com/Parthee-Vijaya/hviske-coreml) side-om-side
+med saga-repoet og kør dets `python/v3_convert.py` (konverterer syv.ai's model
+lokalt, ~2.9 GB). Vælg derefter Hviske i Settings → Stemme — Saga bruger Canary
+indtil modellen er på plads.
 
 ## LM Studio (valgfri)
 
