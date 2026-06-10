@@ -21,10 +21,11 @@ public struct StatusView: View {
     static let versionLabel: String = "v\(shortVersion) (\(buildNumber))"
 
     /// Disclosure-state for kollapsbare sektioner. Default: status er åbent
-    /// (brugeren vil typisk se health-rows ved åbning), recent er kollapset
-    /// (kun brug for det på request).
-    @State private var showSystemDetails: Bool = true
-    @State private var showRecent: Bool = false
+    /// (brugeren vil typisk se health-rows ved åbning), recent er kollapset.
+    /// @AppStorage frem for @State — MenuBarExtra-content genskabes ved hver
+    /// popover-åbning, så @State ville resette brugerens valg hver gang.
+    @AppStorage("statusView.showSystemDetails") private var showSystemDetails: Bool = true
+    @AppStorage("statusView.showRecent") private var showRecent: Bool = false
 
     public var body: some View {
         ZStack {
@@ -60,6 +61,9 @@ public struct StatusView: View {
             // Faktisk content
             VStack(alignment: .leading, spacing: 0) {
                 header
+                if let error = controller.recentError {
+                    errorBanner(error)
+                }
                 sectionDivider
                 statusDisclosure
                 sectionDivider
@@ -73,6 +77,55 @@ public struct StatusView: View {
         }
         .padding(SagaSpacing.xs + 2)
         .preferredColorScheme(.dark)
+    }
+
+    /// Banner der viser SagaController.recentError med valgfri Fix-knap.
+    /// Aktiverer SagaError-systemets recovery-flow (fx "Åbn System Settings"
+    /// ved manglende mic-permission). Dismiss rydder både structured +
+    /// string-fejlen via clearError().
+    private func errorBanner(_ error: SagaError) -> some View {
+        HStack(alignment: .top, spacing: SagaSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12))
+                .foregroundColor(SagaColors.warning)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(error.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(SagaColors.textPrimary)
+                Text(error.detail)
+                    .font(SagaTypography.caption)
+                    .foregroundColor(SagaColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let recovery = error.recovery {
+                    Button(recovery.label) {
+                        recovery.execute()
+                        controller.clearError()
+                    }
+                    .buttonStyle(.link)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(SagaColors.accent)
+                    .padding(.top, 2)
+                }
+            }
+            Spacer(minLength: SagaSpacing.xs)
+            Button {
+                controller.clearError()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(SagaColors.textTertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Afvis fejl")
+        }
+        .padding(.horizontal, SagaSpacing.lg)
+        .padding(.vertical, SagaSpacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
+                .fill(SagaColors.warning.opacity(0.10))
+                .padding(.horizontal, SagaSpacing.sm)
+        )
     }
 
     /// Inset-divider — træk ikke helt ud til kant, så glass-edges bevarer
@@ -138,15 +191,26 @@ public struct StatusView: View {
         }
     }
 
+    // State-labels går gennem NSLocalizedString som proof-of-concept for
+    // community-oversættelser (en.lproj findes allerede). Resten af UI'et
+    // er hardcoded dansk indtil videre — se CONTRIBUTING.md → Localization.
     private var stateText: String {
         switch controller.state {
         case .idle:
-            if let err = controller.lastError { return err }
-            if !controller.health.asr.isHappy { return "Indlæser ASR-model" }
-            return controller.stenografMode ? "Klar · Stenograf-mode" : "Klar"
-        case .recording: return "Lytter…"
-        case .transcribing: return "Transkriberer…"
-        case .routing: return "Tænker…"
+            // recentError vises i errorBanner — undgå at duble fejlteksten her.
+            if controller.recentError == nil, let err = controller.lastError { return err }
+            if !controller.health.asr.isHappy {
+                return NSLocalizedString("saga.state.loading_asr", value: "Indlæser ASR-model", comment: "Menubar-state mens CoreML-modellen loader")
+            }
+            return controller.stenografMode
+                ? NSLocalizedString("saga.state.stenograf", value: "Klar · Stenograf-mode", comment: "Menubar-state: klar, stenograf-mode aktiv")
+                : NSLocalizedString("saga.state.idle", value: "Klar", comment: "Menubar-state: klar til dictation")
+        case .recording:
+            return NSLocalizedString("saga.state.recording", value: "Lytter…", comment: "Menubar-state under optagelse")
+        case .transcribing:
+            return NSLocalizedString("saga.state.transcribing", value: "Transkriberer…", comment: "Menubar-state under transkribering")
+        case .routing:
+            return NSLocalizedString("saga.state.routing", value: "Tænker…", comment: "Menubar-state under LLM-routing")
         }
     }
 
@@ -340,14 +404,8 @@ struct StatusFooterButton: View {
             )
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
+        .onHover { hovering in isHovered = hovering }
+        .pointingHandOnHover()
         .pressEvents(
             onPress: { isPressed = true },
             onRelease: { isPressed = false }
@@ -589,14 +647,8 @@ struct ControlTile: View {
             .scaleEffect(isPressed ? 0.96 : 1.0)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
+        .onHover { hovering in isHovered = hovering }
+        .pointingHandOnHover()
         .pressEvents(
             onPress: { isPressed = true },
             onRelease: { isPressed = false }
@@ -660,14 +712,8 @@ struct DisclosureRowHeader: View {
             .padding(.vertical, SagaSpacing.xs + 2)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
+        .onHover { hovering in isHovered = hovering }
+        .pointingHandOnHover()
         .animation(.easeInOut(duration: 0.18), value: isExpanded)
         .animation(.easeInOut(duration: 0.10), value: isHovered)
     }
@@ -691,14 +737,8 @@ struct VersionLink: View {
         }
         .buttonStyle(.plain)
         .help("Version \(StatusView.shortVersion) · Build \(StatusView.buildNumber) — klik for release notes")
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
+        .onHover { hovering in isHovered = hovering }
+        .pointingHandOnHover()
         .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 

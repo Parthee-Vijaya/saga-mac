@@ -16,8 +16,9 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
   -project SagaApp.xcodeproj -scheme saga-cli -configuration Debug build
 
 # 3. Verificér ASR-modellerne er på plads
-ls ~/Desktop/Claude/projekter/aktive/canary-coreml/models/mlpackage/
-ls ~/Desktop/Claude/projekter/aktive/hviske-coreml/models/whisperkit/syvai_hviske-v3/
+# (repos forventes klonet side-om-side med saga — juster paths efter dit setup)
+ls ../canary-coreml/models/mlpackage/
+ls ../hviske-coreml/models/whisperkit/syvai_hviske-v3/
 ```
 
 ## Tilføj samples

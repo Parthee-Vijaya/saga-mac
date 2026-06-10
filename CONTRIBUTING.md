@@ -113,6 +113,19 @@ Hvis du ændrer i ASR-pipelinen:
 
 Output ender i hver søsterprojekts `models/`-mappe. Saga's bridge-klasser `locateModelsDirectory` søger flere fallback-paths inkl. `~/Desktop/Claude/projekter/aktive/{canary,hviske}-coreml/models/...`.
 
+## Localization
+
+Saga er dansk-first — det meste UI er hardcoded dansk. Infrastrukturen til oversættelser ligger klar:
+
+- `saga-app/Resources/da.lproj/Localizable.strings` — dansk (udviklings-sprog)
+- `saga-app/Resources/en.lproj/Localizable.strings` — engelsk skabelon
+
+**Status:** Kun menubar'ens state-labels (`saga.state.*`) går gennem `NSLocalizedString` indtil videre (se `StatusView.stateText` som mønster). Resten af nøglerne i .strings-filerne er forberedt men ikke wiret.
+
+**Vil du bidrage en oversættelse?**
+1. Wire flere strings: wrap hardcodede danske strenge i `NSLocalizedString("nøgle", value: "Dansk fallback", comment: "kontekst")` og tilføj nøglen til begge .strings-filer
+2. Nyt sprog: kopiér `en.lproj` til fx `sv.lproj`, oversæt værdierne, registrér mappen i `project.yml` under `sources:`
+
 ## Spørgsmål?
 
 - Issue: https://github.com/Parthee-Vijaya/saga-mac/issues

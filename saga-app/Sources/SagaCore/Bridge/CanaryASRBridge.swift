@@ -11,7 +11,7 @@ import OSLog
 ///
 /// Hviske-coreml planlægges som drop-in-erstatning senere (~10 dages konvertering)
 /// — samme interface, bedre dansk-kvalitet (Hviske 14% WER vs Canary ~16%).
-public final class CanaryASRBridge: @unchecked Sendable {
+public final class CanaryASRBridge: DanishASRBridging, @unchecked Sendable {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "canary")
 
     private let queue = DispatchQueue(label: "dk.parthee.saga.canary")

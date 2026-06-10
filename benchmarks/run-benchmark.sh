@@ -4,8 +4,9 @@
 #
 # Forudsætninger:
 #   - saga-cli bygget (xcodebuild -scheme saga-cli)
-#   - Canary mlpackages på plads (~/Desktop/Claude/projekter/aktive/canary-coreml/models/mlpackage)
-#   - Hviske mlpackages på plads (~/Desktop/Claude/projekter/aktive/hviske-coreml/models/whisperkit/syvai_hviske-v3)
+#   - Canary mlpackages på plads (../canary-coreml/models/mlpackage — sibling til saga-repoet)
+#   - Hviske mlpackages på plads (../hviske-coreml/models/whisperkit/syvai_hviske-v3)
+#     (saga-cli's --models flag kan override begge paths)
 #   - benchmarks/samples/*.wav med tilhørende benchmarks/samples/*.txt (ground truth)
 #   - jiwer for WER-beregning: pip install jiwer
 #

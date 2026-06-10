@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Saga design tokens — centraliseret farve/typografi/spacing.
@@ -125,5 +126,19 @@ extension View {
     /// Anvend en `SagaShadow` på et view.
     public func sagaShadow(_ shadow: SagaShadow) -> some View {
         self.shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+    }
+
+    /// Vis pointing-hand-cursor ved hover. Bruger `NSCursor.set()` frem for
+    /// push()/pop() — push/pop-stakken kan komme ud af balance ved hurtige
+    /// mouse-moves over flere hover-områder, hvorefter cursoren hænger fast.
+    /// set() er idempotent og kræver ingen balancering.
+    public func pointingHandOnHover() -> some View {
+        onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        }
     }
 }

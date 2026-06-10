@@ -116,6 +116,12 @@ public final class ModelDownloader: ObservableObject {
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            // 404 betyder næsten altid at release-assets ikke er uploadet endnu
+            // (eller repoet er privat). Giv en handlingsanvisende besked frem
+            // for et råt statusnummer.
+            if status == 404 {
+                throw DownloadError.releaseNotPublished
+            }
             throw DownloadError.serverError(status: status)
         }
 
@@ -129,7 +135,13 @@ public final class ModelDownloader: ObservableObject {
         buffer.reserveCapacity(64 * 1024)
         for try await byte in asyncBytes {
             if Task.isCancelled {
-                try? FileManager.default.removeItem(at: tmpZip)
+                do {
+                    try FileManager.default.removeItem(at: tmpZip)
+                } catch {
+                    // Tavs sletning her ville efterlade multi-GB tmp-zips i
+                    // Application Support uden spor. Log så det kan opdages.
+                    log.warning("Kunne ikke slette tmp-zip efter cancel: \(error.localizedDescription, privacy: .public)")
+                }
                 throw DownloadError.cancelled
             }
             buffer.append(byte)
@@ -189,13 +201,16 @@ public final class ModelDownloader: ObservableObject {
     public enum DownloadError: LocalizedError {
         case invalidURL(String)
         case serverError(status: Int)
+        case releaseNotPublished
         case unzipFailed(status: Int)
         case cancelled
 
         public var errorDescription: String? {
             switch self {
             case .invalidURL(let name): return "Ugyldig URL for \(name)"
-            case .serverError(let status): return "Server returnerede \(status). Tjek at canary-coreml releases er tilgængelige."
+            case .serverError(let status): return "Server returnerede \(status). Tjek netværk og prøv igen."
+            case .releaseNotPublished:
+                return "Model-serveren har ingen release endnu (404). Brug full-DMG'en fra GitHub Releases i stedet — den har modellerne bundlet. Eller sæt en custom download-URL i UserDefaults-nøglen 'modelDownloader.baseURL'."
             case .unzipFailed(let status): return "Unzip fejlede (status \(status))"
             case .cancelled: return "Download afbrudt"
             }

@@ -14,7 +14,7 @@ import OSLog
 /// at brugerens Mac har sproget downloaded i System Settings → Apple
 /// Intelligence & Siri → Speech Languages). Hvis ikke, falder vi tilbage til
 /// cloud-recognition som er hurtigere men sender audio til Apple.
-public final class AppleSpeechBridge: @unchecked Sendable {
+public final class AppleSpeechBridge: AppleSpeechBridging, @unchecked Sendable {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "apple-speech")
 
     public init() {}

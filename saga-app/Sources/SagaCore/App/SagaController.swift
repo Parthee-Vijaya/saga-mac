@@ -625,9 +625,12 @@ public final class SagaController: ObservableObject {
                     preferredDanishEngine: preferredDanishEngine
                 )
 
-                // Track engine + latency for HUD-display + stats
+                // Track engine + latency for HUD-display + stats. Routeren
+                // stempler resultatet med den engine der FAKTISK kørte
+                // (Hviske/Canary/Apple Speech) — inkl. fallback-paths.
                 lastTranscribeMs = transcript.inferenceMs
-                lastEngineLabel = effectiveLanguage.usesCanary ? "Canary" : "Apple Speech"
+                lastEngineLabel = transcript.engineLabel
+                    ?? (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech")
 
                 // Privacy-mode: skip ALT history-logging når aktivt.
                 // Stats, journal og history.append nedenstrøms skal alle
@@ -815,7 +818,7 @@ public final class SagaController: ObservableObject {
                     latencyMs: transcript.inferenceMs,
                     engine: result.mode != nil
                         ? "LM Studio"
-                        : (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech")
+                        : (transcript.engineLabel ?? (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech"))
                 )
                 wakeWord.resumeAfterRecording()
             } catch {
@@ -857,10 +860,22 @@ public struct TranscribeResult: Sendable {
     public let inferenceMs: Int
     public let rtf: Double
 
-    public init(text: String, durationMs: Int, inferenceMs: Int, rtf: Double) {
+    /// Hvilken engine der FAKTISK transcriberede ("Canary", "Hviske",
+    /// "Apple Speech"). Sættes af MultilingualASRRouter — bridges behøver
+    /// ikke kende deres eget display-navn. Nil hvis kaldt udenom routeren.
+    public let engineLabel: String?
+
+    public init(text: String, durationMs: Int, inferenceMs: Int, rtf: Double, engineLabel: String? = nil) {
         self.text = text
         self.durationMs = durationMs
         self.inferenceMs = inferenceMs
         self.rtf = rtf
+        self.engineLabel = engineLabel
+    }
+
+    /// Kopi med engineLabel sat. Bruges af routeren til at stemple resultatet
+    /// med den engine der faktisk kørte.
+    public func withEngineLabel(_ label: String) -> TranscribeResult {
+        TranscribeResult(text: text, durationMs: durationMs, inferenceMs: inferenceMs, rtf: rtf, engineLabel: label)
     }
 }

@@ -193,8 +193,8 @@ public struct FirstRunWindow: View {
             Spacer()
         }
         .padding(.top, SagaSpacing.xl)
-        .onAppear { controller.audio.start() }
-        .onDisappear { controller.audio.stop() }
+        // Audio start/stop styres af advance() + window-level onAppear/onDisappear
+        // — IKKE her. Tre konkurrerende lifecycle-hooks gav dobbelt-start-warnings.
     }
 
     // MARK: - Hotkey
@@ -318,7 +318,7 @@ public struct FirstRunWindow: View {
                 EngineCard(
                     title: "Canary",
                     tagline: "25 EU-sprog · Apache 2.0",
-                    description: "NVIDIA's multilingual ASR. Kommerciel-OK med attribution. ~1,8 GB download.",
+                    description: "NVIDIA's multilingual ASR. Kommerciel-OK med attribution. ~1,8 GB — medfølger i DMG'en.",
                     isRecommended: true,
                     isSelected: controller.preferredDanishEngine == .canary,
                     onSelect: { controller.preferredDanishEngine = .canary }
@@ -326,7 +326,7 @@ public struct FirstRunWindow: View {
                 EngineCard(
                     title: "Hviske",
                     tagline: "Dansk-først · CC BY-NC 4.0",
-                    description: "syv.ai's Whisper-finetune. KUN privat brug. ~2,9 GB download.",
+                    description: "syv.ai's Whisper-finetune. KUN privat brug. ~2,9 GB — installeres separat.",
                     isRecommended: false,
                     isSelected: controller.preferredDanishEngine == .hviske,
                     onSelect: { controller.preferredDanishEngine = .hviske }
@@ -338,7 +338,7 @@ public struct FirstRunWindow: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(SagaColors.warning)
                         .font(.system(size: 12))
-                    Text("Ved at vælge Hviske accepterer du CC BY-NC 4.0. Modellen downloades først når du laver din første dansk-dictation.")
+                    Text("Ved at vælge Hviske accepterer du CC BY-NC 4.0 (kun ikke-kommerciel brug). Hviske kræver at modellen er installeret separat — se status i Indstillinger → Stemme. Saga bruger Canary indtil Hviske er klar.")
                         .font(SagaTypography.caption)
                         .foregroundColor(SagaColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -649,14 +649,8 @@ private struct EngineCard: View {
             .shadow(color: isSelected ? SagaColors.accent.opacity(0.18) : .clear, radius: 8, x: 0, y: 0)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
+        .onHover { hovering in isHovered = hovering }
+        .pointingHandOnHover()
         .animation(.easeInOut(duration: 0.15), value: isSelected)
         .animation(.easeInOut(duration: 0.10), value: isHovered)
     }

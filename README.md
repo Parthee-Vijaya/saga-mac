@@ -17,7 +17,7 @@ Du holder ⌥ Højre Option, taler dansk, og slipper. Teksten lander præcist hv
 | **Hviske-v3** (opt-in) | Kun dansk | CC BY-NC 4.0 (privat) | 10.74% WER | Pure-dansk samtale |
 | **Apple Speech** (fallback) | Tamilsk + andre | Apple SLA | varierer | Sprog Canary ikke dækker |
 
-Begge model-vægte downloades on-demand første gang du vælger dem — Saga's app-bundle er ~12 MB.
+**Distribution i dag:** DMG'en (~1,7 GB) bundler Canary — dictation virker offline fra første launch. Hviske installeres separat via søsterprojektet [hviske-coreml](https://github.com/Parthee-Vijaya/hviske-coreml) (~2,9 GB) og aktiveres i Settings → Voice; Saga falder tilbage til Canary indtil modellen er på plads. Slim-DMG med on-demand-download er på roadmap (kræver hostede model-releases).
 
 ## Det den kan
 
@@ -79,9 +79,13 @@ Saga er for personer der gerne vil have produktivt voice-input på dansk, men ik
 
 ---
 
-> **Status — v0.9.0 ship'et, v0.10.0 + v0.11.0 features merged til main**
+> **Status — v0.9.0 ship'et** ([release](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.9.0)):
+> menubar-redesign (Living Glass + Command Surface tiles), dual ASR-engine
+> (Canary default + Hviske opt-in), license-disclosure, saga-cli, benchmarks.
 >
-> **v0.9.0 (Sprint 1 — quick wins):** Voice snippets, privacy-mode (no
+> **Tidligere sprints (alle i main):**
+>
+> **Sprint 1:** Voice snippets, privacy-mode (no
 > history), Daily voice-journal, smart Electron-detection, multi-monitor
 > HUD-positionering.
 >
@@ -283,8 +287,8 @@ Repo'et er privat, så download kræver authentication. Vælg én af:
 ```bash
 brew install gh
 gh auth login
-gh release download v0.8.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
-open Saga-0.8.0.dmg
+gh release download v0.9.0 --repo Parthee-Vijaya/saga-mac --pattern "Saga-*.dmg"
+open Saga-0.9.0.dmg
 ```
 
 **Med `curl` + Personal Access Token:**
@@ -295,21 +299,21 @@ export GH_TOKEN="ghp_din_token_her"
 
 # Find asset-id'et
 ASSET_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.8.0" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.9.0" \
   | grep '"id"' | head -2 | tail -1 | grep -oE '[0-9]+')
 
 # Hent DMG (følg redirect til S3)
-curl -L -o Saga-0.8.0.dmg \
+curl -L -o Saga-0.9.0.dmg \
   -H "Authorization: token $GH_TOKEN" \
   -H "Accept: application/octet-stream" \
   "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/assets/$ASSET_ID"
 
-open Saga-0.8.0.dmg
+open Saga-0.9.0.dmg
 ```
 
 ### Eller via browser
 
-Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.8.0) →
+Hent fra [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.9.0) →
 træk Saga.app til Applications.
 
 Se [docs/INSTALL.md](docs/INSTALL.md) for trin-for-trin guide inkl. Gatekeeper-bypass og
@@ -356,6 +360,12 @@ canonical-state og `vidensbase/projekter/saga.md` (lokal memory) som
 session-log med commit-hashes per fase.
 
 ## Setup (udviklere)
+
+> ⚠️ **Saga kan IKKE bygges alene.** `saga-app/project.yml` har en lokal
+> SPM-dependency på søsterrepoet `canary-coreml` (forventes på
+> `../../canary-coreml/swift` relativt til `saga-app/`). Klon begge repos
+> side-om-side som vist nedenfor, ellers fejler `xcodegen`-projektet med
+> "Missing package product 'CanaryKit'".
 
 ```bash
 # Forudsætninger
