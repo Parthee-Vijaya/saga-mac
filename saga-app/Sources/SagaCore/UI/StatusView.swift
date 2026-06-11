@@ -29,14 +29,25 @@ public struct StatusView: View {
 
     public var body: some View {
         ZStack {
-            // Glass-base — matcher RecordingHUD + CompanionOverlay vokabular.
-            // .ultraThinMaterial er underlagt, surfaceElevated giver tint så
-            // tekst kan læses oven på en hvilken som helst skrivebords-baggrund.
+            // Aurora-glow BAGVED glasset — .ultraThinMaterial blurrer alt
+            // visuelt bag sig (også sibling-views lavere i z-ordenen), så
+            // glowen bliver glassets "indhold" at refraktere. Uden den er
+            // blur usynlig mod en mørk desktop.
+            AuroraGlowBackground()
+
+            // Liquid Glass Pro-base (Design B): materiale + mørk blålig tint
+            // + specular border (lysere top-kant) + dyb skygge. Audio-reactive
+            // accent-border ligger OVENPÅ specular-stroken så recording-pulsen
+            // stadig dominerer visuelt når den er aktiv.
             RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
-                        .fill(SagaColors.surfaceElevated.opacity(0.85))
+                        .fill(SagaColors.glassPanelTint)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+                        .strokeBorder(SagaColors.specularBorder, lineWidth: 1)
                 )
                 .overlay(
                     AudioReactiveBorder(audio: controller.audio, state: controller.state)
@@ -56,7 +67,7 @@ public struct StatusView: View {
                     .clipShape(RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous))
                     .allowsHitTesting(false)
                 )
-                .sagaShadow(.subtle)
+                .sagaShadow(.glassDepth)
 
             // Faktisk content
             VStack(alignment: .leading, spacing: 0) {
@@ -441,9 +452,12 @@ struct HealthRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: SagaSpacing.md) {
+            // Glødende dot (Design B) — ok-state pulserer ikke, men gløder
+            // blødt så "alt kører" føles levende.
             Circle()
                 .fill(ok ? SagaColors.success : SagaColors.warning)
                 .frame(width: 8, height: 8)
+                .shadow(color: (ok ? SagaColors.success : SagaColors.warning).opacity(0.7), radius: 4)
                 .padding(.top, 5)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
@@ -478,6 +492,7 @@ struct PermissionInlineRow: View {
             Circle()
                 .fill(allOk ? SagaColors.success : SagaColors.warning)
                 .frame(width: 8, height: 8)
+                .shadow(color: (allOk ? SagaColors.success : SagaColors.warning).opacity(0.7), radius: 4)
                 .padding(.top, 5)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Permissions")
@@ -590,7 +605,10 @@ struct AudioReactiveBorder: View {
     private var opacity: Double {
         switch state {
         case .idle:
-            return 0.18
+            // Specular-stroken (Design B) er basis-kanten i idle — accent-laget
+            // er helt slukket så glasset står rent. Tidligere 0.18 gav
+            // dobbelt-border oveni specular.
+            return 0.0
         case .recording:
             let recent = audio.levelHistory.suffix(5)
             guard !recent.isEmpty else { return 0.35 }
@@ -643,7 +661,7 @@ struct ControlTile: View {
                 RoundedRectangle(cornerRadius: SagaRadii.medium, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: isOn ? 1 : 0.5)
             )
-            .shadow(color: isOn ? onColor.opacity(0.20) : .clear, radius: 8, x: 0, y: 0)
+            .shadow(color: isOn ? onColor.opacity(0.25) : .clear, radius: 16, x: 0, y: 0)
             .scaleEffect(isPressed ? 0.96 : 1.0)
         }
         .buttonStyle(.plain)
@@ -658,19 +676,21 @@ struct ControlTile: View {
         .animation(.easeInOut(duration: 0.08), value: isPressed)
     }
 
+    // Design B-værdier: frosted off-state (white .05), accent-tintet on-state
+    // med bredere glow — matcher Liquid Glass Pro-mockupen.
     private var backgroundFill: Color {
         if isOn {
-            return onColor.opacity(isHovered ? 0.20 : 0.14)
+            return onColor.opacity(isHovered ? 0.22 : 0.16)
         }
         if isPressed { return SagaColors.surfaceElevated }
-        if isHovered { return SagaColors.surface }
-        return Color.white.opacity(0.02)
+        if isHovered { return Color.white.opacity(0.09) }
+        return Color.white.opacity(0.05)
     }
 
     private var borderColor: Color {
-        if isOn { return onColor.opacity(0.50) }
+        if isOn { return onColor.opacity(0.55) }
         if isHovered { return SagaColors.borderStrong }
-        return SagaColors.border
+        return Color.white.opacity(0.10)
     }
 }
 
