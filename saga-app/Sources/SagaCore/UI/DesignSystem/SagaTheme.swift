@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Saga design tokens — centraliseret farve/typografi/spacing.
@@ -59,6 +60,34 @@ public enum SagaColors {
     public static let success = Color(red: 0.30, green: 0.85, blue: 0.55)
     public static let warning = Color(red: 1.0, green: 0.75, blue: 0.30)
     public static let danger = Color(red: 1.0, green: 0.45, blue: 0.45)
+
+    // MARK: - Liquid Glass Pro (Design B, valgt 2026-06-10)
+
+    /// Panel-tint over .ultraThinMaterial — mørk blålig frem for ren grå,
+    /// så glasset får dybde mod en hvilken som helst desktop-baggrund.
+    public static let glassPanelTint = Color(red: 0.11, green: 0.125, blue: 0.165).opacity(0.72)
+
+    /// Basis-glaskant (sider + bund).
+    public static let glassBorder = Color.white.opacity(0.16)
+
+    /// Specular highlight — lysere top-kant der simulerer lys ovenfra
+    /// rammer glasoverfladen. Bruges som top-stop i specularBorder-gradienten.
+    public static let glassSpecular = Color.white.opacity(0.32)
+
+    /// Violet sekundær-glow til aurora-baggrunde (komplementerer accent-blå).
+    public static let auroraViolet = Color(red: 0.545, green: 0.361, blue: 0.965)
+
+    /// Border-gradient med specular top: lysere foroven, basis ved bund.
+    /// Brug med .strokeBorder(SagaColors.specularBorder, lineWidth: 1).
+    public static let specularBorder = LinearGradient(
+        stops: [
+            .init(color: glassSpecular, location: 0.0),
+            .init(color: glassBorder, location: 0.25),
+            .init(color: Color.white.opacity(0.10), location: 1.0),
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
 }
 
 /// Typografi-presets. Brug `SagaTypography.heading` etc. i stedet for
@@ -119,11 +148,78 @@ public struct SagaShadow: Sendable {
     public static let subtle = SagaShadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
     public static let medium = SagaShadow(color: .black.opacity(0.35), radius: 16, x: 0, y: 6)
     public static let glow = SagaShadow(color: SagaColors.accent.opacity(0.3), radius: 24, x: 0, y: 0)
+
+    /// Glød til status-dots i ok-state — gør "alt kører" levende uden støj.
+    public static let successGlow = SagaShadow(color: SagaColors.success.opacity(0.7), radius: 4, x: 0, y: 0)
+
+    /// Dyb panel-skygge til Liquid Glass-paneler (afstand fra desktop).
+    public static let glassDepth = SagaShadow(color: .black.opacity(0.5), radius: 22, x: 0, y: 10)
+}
+
+/// Aurora-glow: to bløde radial-gradienter (accent-blå øverst-venstre, violet
+/// nederst-højre) der lægges BAG et glas-panel. Giver glasset noget at
+/// refraktere så blur-effekten bliver synlig selv mod mørk desktop.
+public struct AuroraGlowBackground: View {
+    public init() {}
+
+    public var body: some View {
+        ZStack {
+            RadialGradient(
+                colors: [SagaColors.accent.opacity(0.16), .clear],
+                center: .init(x: 0.28, y: 0.18),
+                startRadius: 0,
+                endRadius: 260
+            )
+            RadialGradient(
+                colors: [SagaColors.auroraViolet.opacity(0.13), .clear],
+                center: .init(x: 0.75, y: 0.80),
+                startRadius: 0,
+                endRadius: 240
+            )
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+extension View {
+    /// Liquid Glass Pro-panel: .ultraThinMaterial + mørk blålig tint +
+    /// specular border (lysere top-kant) + dyb skygge. Design B's
+    /// signatur-stack — brug på menubar-popover, HUD-agtige paneler og
+    /// andre svævende flader.
+    public func liquidGlassPanel(cornerRadius: CGFloat = SagaRadii.large) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(SagaColors.glassPanelTint)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(SagaColors.specularBorder, lineWidth: 1)
+                )
+                .sagaShadow(.glassDepth)
+        )
+    }
 }
 
 extension View {
     /// Anvend en `SagaShadow` på et view.
     public func sagaShadow(_ shadow: SagaShadow) -> some View {
         self.shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+    }
+
+    /// Vis pointing-hand-cursor ved hover. Bruger `NSCursor.set()` frem for
+    /// push()/pop() — push/pop-stakken kan komme ud af balance ved hurtige
+    /// mouse-moves over flere hover-områder, hvorefter cursoren hænger fast.
+    /// set() er idempotent og kræver ingen balancering.
+    public func pointingHandOnHover() -> some View {
+        onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        }
     }
 }

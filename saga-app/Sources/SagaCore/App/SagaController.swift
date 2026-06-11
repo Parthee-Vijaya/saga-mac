@@ -112,6 +112,26 @@ public final class SagaController: ObservableObject {
 
     @Published public private(set) var state: SagaState = .idle
     @Published public private(set) var lastError: String?
+
+    /// Strukturet version af lastError. Sættes parallelt med lastError-string
+    /// så view-laget kan vise actionable "Fix"-knap når recovery findes.
+    /// Migration sker gradvist — paths der ikke bruger SagaError sætter
+    /// kun lastError (string).
+    @Published public private(set) var recentError: SagaError?
+
+    /// Sæt både structured + string-form. Kaldes fra alle nye error-paths.
+    /// Eksisterende `lastError = "..."` direct-assignment paths kan migrere
+    /// til denne funktion gradvist.
+    public func reportError(_ error: SagaError) {
+        recentError = error
+        lastError = error.detail
+    }
+
+    /// Ryd både structured + string-form. Kaldes ved successful recovery.
+    public func clearError() {
+        recentError = nil
+        lastError = nil
+    }
     @Published public private(set) var booted = false
     @Published public private(set) var discoveredEndpoints: [DiscoveredEndpoint] = []
     @Published public private(set) var isDiscoveringLMStudio = false
@@ -446,13 +466,13 @@ public final class SagaController: ObservableObject {
                 Task { @MainActor in
                     self?.log.info("Mikrofon-permission granted: \(granted)")
                     if !granted {
-                        self?.lastError = "Mikrofon-adgang blev nægtet. Aktivér i System Settings → Privacy → Microphone."
+                        self?.reportError(.micPermissionDenied())
                     }
                 }
             }
         case .denied, .restricted:
             log.warning("Mikrofon-permission er nægtet")
-            lastError = "Mikrofon-adgang mangler. Aktivér i System Settings → Privacy → Microphone."
+            reportError(.micPermissionDenied())
         case .authorized:
             log.info("Mikrofon-permission OK")
         @unknown default:
@@ -605,9 +625,12 @@ public final class SagaController: ObservableObject {
                     preferredDanishEngine: preferredDanishEngine
                 )
 
-                // Track engine + latency for HUD-display + stats
+                // Track engine + latency for HUD-display + stats. Routeren
+                // stempler resultatet med den engine der FAKTISK kørte
+                // (Hviske/Canary/Apple Speech) — inkl. fallback-paths.
                 lastTranscribeMs = transcript.inferenceMs
-                lastEngineLabel = effectiveLanguage.usesCanary ? "Canary" : "Apple Speech"
+                lastEngineLabel = transcript.engineLabel
+                    ?? (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech")
 
                 // Privacy-mode: skip ALT history-logging når aktivt.
                 // Stats, journal og history.append nedenstrøms skal alle
@@ -795,7 +818,7 @@ public final class SagaController: ObservableObject {
                     latencyMs: transcript.inferenceMs,
                     engine: result.mode != nil
                         ? "LM Studio"
-                        : (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech")
+                        : (transcript.engineLabel ?? (effectiveLanguage.usesCanary ? "Canary" : "Apple Speech"))
                 )
                 wakeWord.resumeAfterRecording()
             } catch {
@@ -837,10 +860,22 @@ public struct TranscribeResult: Sendable {
     public let inferenceMs: Int
     public let rtf: Double
 
-    public init(text: String, durationMs: Int, inferenceMs: Int, rtf: Double) {
+    /// Hvilken engine der FAKTISK transcriberede ("Canary", "Hviske",
+    /// "Apple Speech"). Sættes af MultilingualASRRouter — bridges behøver
+    /// ikke kende deres eget display-navn. Nil hvis kaldt udenom routeren.
+    public let engineLabel: String?
+
+    public init(text: String, durationMs: Int, inferenceMs: Int, rtf: Double, engineLabel: String? = nil) {
         self.text = text
         self.durationMs = durationMs
         self.inferenceMs = inferenceMs
         self.rtf = rtf
+        self.engineLabel = engineLabel
+    }
+
+    /// Kopi med engineLabel sat. Bruges af routeren til at stemple resultatet
+    /// med den engine der faktisk kørte.
+    public func withEngineLabel(_ label: String) -> TranscribeResult {
+        TranscribeResult(text: text, durationMs: durationMs, inferenceMs: inferenceMs, rtf: rtf, engineLabel: label)
     }
 }

@@ -1,0 +1,62 @@
+/* Localizable.strings — Danish (development language)
+
+   Saga er dansk-first. Denne fil er localiserings-grundsten — community-PRs
+   kan tilføje .lproj-mapper for andre sprog. For nu er kun et mindre udvalg
+   af mest-visible strings wrapped i NSLocalizedString — vi udvider gradvist.
+
+   Format: "key" = "value";  // optional comment after semicolon
+*/
+
+/* App + menubar */
+"saga.app.name" = "Saga";
+"saga.menubar.hold_to_talk" = "Hold ⌥ for at tale";
+"saga.menubar.releases.tooltip" = "Klik for release notes";
+
+/* States */
+"saga.state.idle" = "Klar";
+"saga.state.recording" = "Lytter…";
+"saga.state.transcribing" = "Transkriberer…";
+"saga.state.routing" = "Tænker…";
+"saga.state.loading_asr" = "Indlæser ASR-model";
+"saga.state.stenograf" = "Klar · Stenograf-mode";
+
+/* Quick toggles */
+"saga.toggle.privacy" = "Privacy";
+"saga.toggle.stenograf" = "Stenograf";
+"saga.toggle.wakeword" = "Wake-word";
+"saga.toggle.on" = "ON";
+"saga.toggle.off" = "OFF";
+
+/* First-run wizard */
+"firstrun.welcome.title" = "Velkommen til Saga";
+"firstrun.permissions.title" = "Lad os sætte permissions op";
+"firstrun.mictest.title" = "Test din mikrofon";
+"firstrun.hotkey.title" = "Vælg din push-to-talk-tast";
+"firstrun.asr_engine.title" = "Vælg dansk-engine";
+"firstrun.lmstudio.title" = "Vil du tilslutte LM Studio?";
+"firstrun.licenses.title" = "Licenser & privatliv";
+"firstrun.continue" = "Fortsæt";
+"firstrun.skip" = "Spring over";
+"firstrun.done" = "Færdig";
+"firstrun.start" = "Kom i gang";
+
+/* Settings tabs */
+"settings.tab.general" = "Generelt";
+"settings.tab.voice" = "Stemme";
+"settings.tab.modes" = "Modes";
+"settings.tab.reminders" = "Reminders";
+"settings.tab.profiles" = "Profiler";
+"settings.tab.about" = "Om";
+
+/* Errors */
+"error.mic.denied" = "Mikrofon-adgang mangler. Aktivér i System Settings → Privacy → Microphone.";
+"error.ax.missing" = "Accessibility-adgang mangler. Aktivér i System Settings → Privacy & Security → Accessibility.";
+"error.lmstudio.down" = "LM Studio nede. Mode-routing er deaktiveret.";
+"error.models.loading" = "Indlæser modeller… vent ~10 sekunder.";
+
+/* Common buttons */
+"button.open_settings" = "Åbn System Settings";
+"button.retry" = "Prøv igen";
+"button.cancel" = "Annullér";
+"button.delete" = "Slet";
+"button.reset" = "Nulstil";

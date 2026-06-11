@@ -14,7 +14,7 @@ import WhisperKit
 ///
 /// API matcher CanaryASRBridge så MultilingualASRRouter kan vælge mellem
 /// dem baseret på SagaController.preferredDanishEngine.
-public final class HviskeASRBridge: @unchecked Sendable {
+public final class HviskeASRBridge: DanishASRBridging, @unchecked Sendable {
     private let log = Logger(subsystem: "dk.parthee.saga", category: "hviske")
 
     private let queue = DispatchQueue(label: "dk.parthee.saga.hviske")
@@ -78,8 +78,18 @@ public final class HviskeASRBridge: @unchecked Sendable {
             let elapsed = Date().timeIntervalSince(t0)
             log.info("Hviske loaded på \(String(format: "%.1f", elapsed))s")
         } catch {
-            log.error("WhisperKit init fejlede: \(error.localizedDescription, privacy: .public)")
-            queue.sync { _state = .error(error.localizedDescription) }
+            // Init-fejl efter compile tyder ofte på korrupt cache (delvist
+            // skrevet .mlmodelc fra fx disk-fuld). Slet hele cachen så næste
+            // load recompiler fra source-mlpackages i stedet for at fejle på
+            // samme korrupte filer for evigt.
+            log.error("WhisperKit init fejlede: \(error.localizedDescription, privacy: .public) — sletter compile-cache så næste forsøg recompiler")
+            do {
+                try FileManager.default.removeItem(at: compiledDir)
+                log.info("HviskeCompiled-cache slettet")
+            } catch {
+                log.warning("Kunne ikke slette HviskeCompiled-cache: \(error.localizedDescription, privacy: .public)")
+            }
+            queue.sync { _state = .error("Hviske kunne ikke indlæses — cachen er nulstillet. Prøv at vælge Hviske igen i Indstillinger → Stemme.") }
         }
     }
 

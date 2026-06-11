@@ -5,7 +5,11 @@ import Foundation
 public enum ModelStorage {
     /// `~/Library/Application Support/Saga/Models/`
     public static var modelsDirectory: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        // urls(for:in:) kan i teorien returnere tom array på korrupt system —
+        // fald tilbage til eksplicit home-relativ path frem for at crashe.
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Application Support", isDirectory: true)
         return appSupport
             .appendingPathComponent("Saga", isDirectory: true)
             .appendingPathComponent("Models", isDirectory: true)

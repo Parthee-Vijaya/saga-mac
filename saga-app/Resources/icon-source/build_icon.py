@@ -2,12 +2,13 @@
 """
 Bygger Saga app-ikon i alle 10 størrelser via Pillow + samler ICNS.
 
-Design:
+Design (Liquid Glass Pro — Design B, valgt 2026-06-10):
   - Squircle med Apple's signature corner radius (~22% af canvas)
-  - Sky-blue gradient baggrund (matcher SagaColors.accentGradient)
-  - Hvid omvendt trekant centreret (samme form som menubar-ikonet)
-  - Subtle dybde-overlay (top-light → bottom-shadow)
-  - Subtle skygge på trekanten
+  - Tre-stop sky-blue gradient ved 155° (#67B5FF → #338CF2 → #1F6FD0)
+  - Specular highlight: hvid gradient (.22 → 0) over øverste halvdel
+    + lysere inner-kant langs toppen — "lys rammer glasset ovenfra"
+  - Hvid omvendt trekant centreret med blød drop-glow
+  - Subtle bund-skygge for dybde
 
 Brug:
   python3 build_icon.py
@@ -17,10 +18,26 @@ from PIL import Image, ImageDraw, ImageFilter
 import os
 import math
 
-# Saga brand colors (matcher SagaColors fra SagaTheme.swift)
-ACCENT_LIGHT = (102, 179, 255, 255)  # 0.40, 0.70, 1.0 → #66B3FF
-ACCENT_DEEP = (51, 140, 242, 255)    # 0.20, 0.55, 0.95 → #338CF2
+# Saga brand colors (Liquid Glass Pro-mockup, matcher SagaColors)
+GRAD_TOP = (103, 181, 255, 255)    # #67B5FF — 0%
+GRAD_MID = (51, 140, 242, 255)     # #338CF2 — 55%
+GRAD_BOTTOM = (31, 111, 208, 255)  # #1F6FD0 — 100%
 WHITE = (255, 255, 255, 255)
+
+# 155°-gradientretning (CSS-konvention: 0°=op, med uret).
+_ANG = math.radians(155)
+_DX, _DY = math.sin(_ANG), -math.cos(_ANG)  # (0.423, 0.906) — mest nedad
+
+
+def _grad_color(t: float) -> tuple:
+    """Tre-stop interpolation: 0 → GRAD_TOP, 0.55 → GRAD_MID, 1 → GRAD_BOTTOM."""
+    if t < 0.55:
+        f = t / 0.55
+        a, b = GRAD_TOP, GRAD_MID
+    else:
+        f = (t - 0.55) / 0.45
+        a, b = GRAD_MID, GRAD_BOTTOM
+    return tuple(int(a[i] + (b[i] - a[i]) * f) for i in range(3)) + (255,)
 
 
 def render_icon(size: int) -> Image.Image:
@@ -33,18 +50,13 @@ def render_icon(size: int) -> Image.Image:
     # at skelne fra ægte squircle ved typiske app-icon-størrelser.
     radius = int(size * 0.22)  # 22% corner radius → matcher iOS/macOS
 
-    # Tegn squircle-baggrund med vertikal sky-blue gradient (top-left light → bottom-right deep)
-    # Vi laver gradient ved at tegne linjer pixel-for-pixel
+    # 155°-gradient pixel-for-pixel (tre stop).
     bg = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    bg_draw = ImageDraw.Draw(bg)
+    denom = (_DX + _DY) * size
     for y in range(size):
         for x in range(size):
-            # Diagonal gradient (top-left til bottom-right)
-            t = (x + y) / (2 * size)  # 0.0 → 1.0
-            r = int(ACCENT_LIGHT[0] + (ACCENT_DEEP[0] - ACCENT_LIGHT[0]) * t)
-            g = int(ACCENT_LIGHT[1] + (ACCENT_DEEP[1] - ACCENT_LIGHT[1]) * t)
-            b = int(ACCENT_LIGHT[2] + (ACCENT_DEEP[2] - ACCENT_LIGHT[2]) * t)
-            bg.putpixel((x, y), (r, g, b, 255))
+            t = max(0.0, min(1.0, (_DX * x + _DY * y) / denom))
+            bg.putpixel((x, y), _grad_color(t))
 
     # Mask: squircle (rounded rectangle med rx=22%)
     mask = Image.new("L", (size, size), 0)
@@ -58,14 +70,14 @@ def render_icon(size: int) -> Image.Image:
     # Maskér gradient med squircle
     img.paste(bg, (0, 0), mask)
 
-    # Subtle dybde-overlay (vertikal: top hvid 8%, bunden sort 8%)
+    # Specular highlight (Design B): hvid gradient .22 → 0 over øverste 50%
+    # + svag bund-skygge .08 — "lys rammer glasset ovenfra".
     overlay = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
     for y in range(size):
         t = y / size  # 0 = top, 1 = bottom
-        # Top-light (hvid 8% → 0%) eller bottom-shadow (0% → sort 8%)
         if t < 0.5:
-            alpha = int((0.5 - t) * 2 * 0.08 * 255)
+            alpha = int((0.5 - t) * 2 * 0.22 * 255)
             color = (255, 255, 255, alpha)
         else:
             alpha = int((t - 0.5) * 2 * 0.08 * 255)
@@ -77,6 +89,28 @@ def render_icon(size: int) -> Image.Image:
     overlay_masked.paste(overlay, (0, 0), mask)
     img = Image.alpha_composite(img, overlay_masked)
 
+    # Inner top-kant highlight: lysere linje langs squirclens øverste kant
+    # (mockup: inset 0 1.5px 0 rgba(255,255,255,.5)). Tegnes som en tynd
+    # rounded-rect-stroke hvor kun den øverste del beholdes.
+    edge_w = max(1, round(size * 0.006))
+    edge = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    edge_draw = ImageDraw.Draw(edge)
+    edge_draw.rounded_rectangle(
+        [(0, 0), (size - 1, size - 1)],
+        radius=radius,
+        outline=(255, 255, 255, 128),
+        width=edge_w,
+    )
+    # Fade stroken ud mod bunden: behold fuld styrke i top, 0 fra ~35% ned
+    edge_fade = Image.new("L", (size, size), 0)
+    fade_draw = ImageDraw.Draw(edge_fade)
+    fade_limit = int(size * 0.35)
+    for y in range(fade_limit):
+        alpha = int(255 * (1 - y / fade_limit))
+        fade_draw.line([(0, y), (size, y)], fill=alpha)
+    edge.putalpha(Image.composite(edge.getchannel("A"), Image.new("L", (size, size), 0), edge_fade))
+    img = Image.alpha_composite(img, edge)
+
     # Omvendt trekant (peger nedad, ligesidet, ~50% bredde)
     triangle_width = int(size * 0.50)
     triangle_height = int(triangle_width * math.sqrt(3) / 2)  # ligesidet trekant
@@ -87,10 +121,10 @@ def render_icon(size: int) -> Image.Image:
     left_x = cx - triangle_width // 2
     right_x = cx + triangle_width // 2
 
-    # Tegn trekanten på et separat lag så vi kan blur'e dens skygge
-    # Skygge-lag (offset 4px nedad, blur 8px, 25% sort)
-    shadow_offset = max(2, size // 200)
-    shadow_blur_radius = max(2, size // 100)
+    # Tegn trekanten på et separat lag så vi kan blur'e dens skygge.
+    # Design B: blødere, bredere glow-skygge (mockup: 0 4px 14px rgba(0,0,0,.2))
+    shadow_offset = max(2, round(size * 0.008))
+    shadow_blur_radius = max(3, round(size * 0.027))
     shadow_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     shadow_draw = ImageDraw.Draw(shadow_layer)
     shadow_draw.polygon(
@@ -99,7 +133,7 @@ def render_icon(size: int) -> Image.Image:
             (right_x, top_y + shadow_offset),
             (cx, bottom_y + shadow_offset),
         ],
-        fill=(0, 0, 0, 64),  # 25% sort
+        fill=(0, 0, 0, 51),  # 20% sort
     )
     shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=shadow_blur_radius))
 

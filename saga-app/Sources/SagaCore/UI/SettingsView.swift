@@ -1,38 +1,150 @@
 import AVFoundation
 import SwiftUI
 
-/// Top-level settings vindue. Hver tab er en separat fil i Settings/-mappen
-/// for at holde dette dokument fokuseret på TabView-strukturen og delte
-/// building blocks (`SettingsCard`, `SettingsRow`).
+/// Top-level settings vindue — Liquid Glass Pro-layout (Design B): venstre
+/// sidebar med ikon+titel-navigation frem for macOS' top-TabView. Hver tab
+/// er fortsat en separat fil i Settings/-mappen; denne fil ejer navigation
+/// + delte building blocks (`SettingsCard`, `SettingsRow`).
 public struct SettingsView: View {
     @EnvironmentObject private var controller: SagaController
 
+    /// Persisteret så vinduet genåbner på samme tab.
+    @AppStorage("settings.selectedTab") private var selectedTabRaw: String = SettingsTab.general.rawValue
+
     public init() {}
 
-    public var body: some View {
-        TabView {
-            GeneralSettingsTab()
-                .tabItem { Label("Generelt", systemImage: "gearshape") }
-            VoiceSettingsTab()
-                .tabItem { Label("Stemme", systemImage: "mic") }
-            ModesSettingsTab()
-                .tabItem { Label("Modes", systemImage: "wand.and.stars") }
-            AppProfilesSettingsTab()
-                .tabItem { Label("Apps", systemImage: "app.badge") }
-            CompanionSettingsTab()
-                .tabItem { Label("Companion", systemImage: "bubble.left.and.bubble.right") }
-            VocabularySettingsTab()
-                .tabItem { Label("Ordforråd", systemImage: "text.book.closed") }
-            SnippetsSettingsTab()
-                .tabItem { Label("Snippets", systemImage: "text.bubble") }
-            RemindersSettingsTab()
-                .tabItem { Label("Reminders & Kalender", systemImage: "bell") }
-            AboutTab()
-                .tabItem { Label("Om", systemImage: "info.circle") }
+    enum SettingsTab: String, CaseIterable {
+        case general, voice, modes, apps, companion, vocabulary, snippets, reminders, about
+
+        var title: String {
+            switch self {
+            case .general: return "Generelt"
+            case .voice: return "Stemme"
+            case .modes: return "Modes"
+            case .apps: return "Apps"
+            case .companion: return "Companion"
+            case .vocabulary: return "Ordforråd"
+            case .snippets: return "Snippets"
+            case .reminders: return "Reminders"
+            case .about: return "Om"
+            }
         }
-        .frame(width: 720, height: 680)
+
+        var icon: String {
+            switch self {
+            case .general: return "gearshape"
+            case .voice: return "mic"
+            case .modes: return "wand.and.stars"
+            case .apps: return "app.badge"
+            case .companion: return "bubble.left.and.bubble.right"
+            case .vocabulary: return "text.book.closed"
+            case .snippets: return "text.bubble"
+            case .reminders: return "bell"
+            case .about: return "info.circle"
+            }
+        }
+    }
+
+    private var selectedTab: SettingsTab {
+        SettingsTab(rawValue: selectedTabRaw) ?? .general
+    }
+
+    public var body: some View {
+        HStack(spacing: 0) {
+            sidebar
+            Rectangle()
+                .fill(SagaColors.border)
+                .frame(width: 0.5)
+            tabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: 800, height: 680)
         .background(SagaColors.background)
         .preferredColorScheme(.dark)
+    }
+
+    /// Glas-sidebar: mørkere flade end content-området (mockup: rgba(0,0,0,.18)
+    /// over panelet) med accent-tintet aktiv-state + inset-ring.
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(SettingsTab.allCases, id: \.rawValue) { tab in
+                SidebarButton(
+                    title: tab.title,
+                    icon: tab.icon,
+                    isSelected: tab == selectedTab,
+                    action: { selectedTabRaw = tab.rawValue }
+                )
+            }
+            Spacer()
+        }
+        .padding(.horizontal, SagaSpacing.sm)
+        .padding(.top, SagaSpacing.lg)
+        .frame(width: 178)
+        .background(Color.black.opacity(0.18))
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .general: GeneralSettingsTab()
+        case .voice: VoiceSettingsTab()
+        case .modes: ModesSettingsTab()
+        case .apps: AppProfilesSettingsTab()
+        case .companion: CompanionSettingsTab()
+        case .vocabulary: VocabularySettingsTab()
+        case .snippets: SnippetsSettingsTab()
+        case .reminders: RemindersSettingsTab()
+        case .about: AboutTab()
+        }
+    }
+}
+
+/// Sidebar-navigationsknap med Liquid Glass-aktiv-state: accent-tint +
+/// inset-ring. Hover giver svag frost.
+private struct SidebarButton: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: SagaSpacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .frame(width: 18)
+                Text(title)
+                    .font(.system(size: 12.5, weight: isSelected ? .medium : .regular))
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(isSelected ? .white : SagaColors.textSecondary)
+            .padding(.horizontal, SagaSpacing.sm + 2)
+            .padding(.vertical, SagaSpacing.xs + 3)
+            .background(
+                RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
+                    .fill(backgroundFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: SagaRadii.small, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? SagaColors.accent.opacity(0.30) : .clear,
+                        lineWidth: 1
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in isHovered = hovering }
+        .pointingHandOnHover()
+        .animation(.easeInOut(duration: 0.12), value: isHovered)
+    }
+
+    private var backgroundFill: Color {
+        if isSelected { return SagaColors.accent.opacity(0.18) }
+        if isHovered { return Color.white.opacity(0.06) }
+        return .clear
     }
 }
 
@@ -63,11 +175,13 @@ struct SettingsCard<Content: View>: View {
             }
             .padding(SagaSpacing.lg)
             .background(
-                RoundedRectangle(cornerRadius: SagaRadii.large)
-                    .fill(SagaColors.surface)
+                // Frosted card (Design B): white-tint frem for solid surface
+                // så cards "svæver" på den mørke baggrund.
+                RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
                     .overlay(
-                        RoundedRectangle(cornerRadius: SagaRadii.large)
-                            .strokeBorder(SagaColors.border, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: SagaRadii.large, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                     )
             )
 

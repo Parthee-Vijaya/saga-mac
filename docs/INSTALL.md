@@ -20,10 +20,10 @@ fungerer fuldt med pure dictation uden LM Studio.
 ```bash
 brew install gh                 # kun første gang
 gh auth login                   # følg prompts (1 minut)
-gh release download v0.1.0 \
+gh release download v0.9.0 \
   --repo Parthee-Vijaya/saga-mac \
   --pattern "Saga-*.dmg"
-open Saga-0.1.0.dmg
+open Saga-0.9.0.dmg
 ```
 
 ### Mulighed B — curl + GitHub Personal Access Token
@@ -34,21 +34,21 @@ export GH_TOKEN="ghp_din_token_her"
 
 # 2. Find asset-id og download
 ASSET_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.1.0" \
+  "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/tags/v0.9.0" \
   | grep '"id"' | head -2 | tail -1 | grep -oE '[0-9]+')
 
-curl -L -o Saga-0.1.0.dmg \
+curl -L -o Saga-0.9.0.dmg \
   -H "Authorization: token $GH_TOKEN" \
   -H "Accept: application/octet-stream" \
   "https://api.github.com/repos/Parthee-Vijaya/saga-mac/releases/assets/$ASSET_ID"
 
-open Saga-0.1.0.dmg
+open Saga-0.9.0.dmg
 ```
 
 ### Mulighed C — browser
 
-1. Gå til [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.1.0)
-2. Klik `Saga-0.1.0.dmg` for at downloade
+1. Gå til [GitHub Releases](https://github.com/Parthee-Vijaya/saga-mac/releases/tag/v0.9.0)
+2. Klik `Saga-0.9.0.dmg` for at downloade
 3. Dobbeltklik for at mounte
 
 ### Installér
@@ -89,6 +89,22 @@ Klik **"Kom i gang →"** når mic + AX er grantet.
 2. **Hold ⌥ Højre Option** → tal dansk → slip
 3. Tekst indsættes ved cursor
 4. Klik status-bar-ikon (`waveform.circle`) for live status, historik og indstillinger
+
+## Vælg dansk ASR-engine
+
+Saga har to dansk-engines som du kan vælge mellem i first-run wizard'en eller i `Settings → Stemme`:
+
+| Engine | License | Sprog | Download | Anbefalet til |
+|---|---|---|---|---|
+| **Canary-1b-v2** (default) | Apache 2.0 — kommerciel-OK | 25 EU-sprog | ~1.8 GB | Multi-lingual, code-switching, kommerciel brug |
+| **Hviske-v3** (opt-in) | CC BY-NC 4.0 — kun privat | Kun dansk | ~2.9 GB | Premium dansk-samtale (ikke-kommerciel) |
+
+DMG'en (`Saga-0.9.0.dmg`, ~1.8 GB) bundler Canary fra start — dictation virker
+offline med det samme. Hviske installeres separat: klon søsterrepoet
+[hviske-coreml](https://github.com/Parthee-Vijaya/hviske-coreml) side-om-side
+med saga-repoet og kør dets `python/v3_convert.py` (konverterer syv.ai's model
+lokalt, ~2.9 GB). Vælg derefter Hviske i Settings → Stemme — Saga bruger Canary
+indtil modellen er på plads.
 
 ## LM Studio (valgfri)
 

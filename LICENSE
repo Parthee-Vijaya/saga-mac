@@ -1,12 +1,49 @@
+MIT License
+
 Copyright (c) 2026 Parthee Vijaya
 
-All Rights Reserved — privat projekt til personlig brug.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Saga afhænger af følgende eksterne komponenter med deres egne licenser:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-- Hviske v5.3 (syvai/hviske-v5.3): CC BY-NC 4.0 (ikke-kommerciel).
-  Saga distribueres ikke kommercielt og bundler ikke modellen — brugeren
-  henter den selv via Hugging Face.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-- PyTorch (BSD), Transformers (Apache 2.0), FastAPI (MIT), libsndfile (LGPL),
-  numpy (BSD), librosa (ISC), Sparkle (MIT).
+---
+
+## Third-party model licenses
+
+Saga's source code is MIT licensed. The ML models Saga uses are NOT covered
+by this license — they are downloaded separately and have their own terms:
+
+- **NVIDIA Canary-1b-v2** (default ASR engine) — CC BY 4.0. Commercial use OK
+  with attribution. Hosted at https://huggingface.co/nvidia/canary-1b-v2.
+  CoreML conversion in https://github.com/Parthee-Vijaya/canary-coreml.
+
+- **syv.ai Hviske-v3** (optional Danish premium engine) — CC BY-NC 4.0.
+  **Non-commercial use only.** Saga does not download or redistribute this
+  model — you convert it yourself from syv.ai's official weights via the
+  sibling project https://github.com/Parthee-Vijaya/hviske-coreml, and you
+  accept syv.ai's terms when downloading from
+  https://huggingface.co/syvai/hviske-v3. For commercial use, contact
+  mads@syv.ai.
+
+- **Apple Speech.framework** (fallback for languages not covered by Canary)
+  — Apple Software License (built into macOS).
+
+- **WhisperKit** (Argmax, used internally for Hviske inference) — MIT.
+
+- **Sparkle** (used for auto-update) — MIT.
+
+See Saga's About tab for the live license disclosure UI.
